@@ -7,18 +7,20 @@
  * - Accept POST requests with scheduling data
  * - Validate basic request structure
  * - Forward to Python FastAPI service
+ * - Persist AI outputs to Supabase (if enabled)
  * - Handle errors and timeouts
  * - Return AI response unchanged
  * 
  * Does NOT:
  * - Implement AI logic (Python handles this)
- * - Access databases
  * - Call ScaleDown
- * - Modify responses
+ * - Modify responses (persistence is transparent)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import type { ScheduleRequest, ScheduleResponse, ErrorResponse } from '@/types/scheduling';
+import { persistSchedulingSession } from '@/lib/schedulingPersistence';
+import { isDatabaseEnabled } from '@/lib/supabase';
 
 // Configuration
 const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || 'http://localhost:8000';
@@ -89,6 +91,20 @@ export async function POST(request: NextRequest) {
 
     // Return AI response unchanged
     const aiResponse: ScheduleResponse = await pythonResponse.json();
+    
+    // Persist to database (non-blocking - don't fail request on DB errors)
+    if (isDatabaseEnabled()) {
+      persistSchedulingSession(body, aiResponse)
+        .then(() => {
+          console.log(`✅ Successfully persisted scheduling session: ${body.meeting_id}`);
+        })
+        .catch((error) => {
+          console.error(`⚠️ Failed to persist scheduling session ${body.meeting_id}:`, error);
+          // Continue anyway - persistence failure shouldn't break the API response
+        });
+    } else {
+      console.log('ℹ️ Database persistence is disabled (ENABLE_DATABASE_PERSISTENCE=false)');
+    }
     
     return NextResponse.json<ScheduleResponse>(aiResponse, {
       status: 200,
