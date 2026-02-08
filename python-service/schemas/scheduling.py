@@ -242,6 +242,24 @@ class MeetingSlotCandidate(BaseModel):
         le=100.0,
         description="Overall optimization quality"
     )
+    conflict_proximity_score: float = Field(
+        default=100.0,
+        ge=0.0,
+        le=100.0,
+        description="Penalty for proximity to conflicts (100=no conflicts nearby)"
+    )
+    fragmentation_score: float = Field(
+        default=100.0,
+        ge=0.0,
+        le=100.0,
+        description="Calendar grouping quality (100=well grouped with other meetings)"
+    )
+    
+    # Detailed breakdown
+    score_breakdown: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Detailed breakdown of all scoring factors"
+    )
     
     # Metadata
     conflicts: List[str] = Field(
