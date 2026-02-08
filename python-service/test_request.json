@@ -1,0 +1,131 @@
+{
+  "meeting_id": "test-meeting-001",
+  "participants": [
+    {
+      "user_id": "user-alice",
+      "email": "alice@company.com",
+      "name": "Alice Smith",
+      "is_required": true,
+      "calendar_summary": {
+        "user_id": "user-alice",
+        "timezone": "UTC",
+        "busy_slots": [
+          {
+            "start": "2026-02-10T09:00:00Z",
+            "end": "2026-02-10T10:00:00Z",
+            "timezone": "UTC"
+          },
+          {
+            "start": "2026-02-10T14:00:00Z",
+            "end": "2026-02-10T15:30:00Z",
+            "timezone": "UTC"
+          },
+          {
+            "start": "2026-02-11T10:00:00Z",
+            "end": "2026-02-11T11:00:00Z",
+            "timezone": "UTC"
+          }
+        ],
+        "weekly_meeting_count": 18,
+        "peak_meeting_hours": [9, 10, 14, 15],
+        "preference_patterns": {
+          "preferred_days": ["tuesday", "wednesday", "thursday"],
+          "preferred_hours_start": 9,
+          "preferred_hours_end": 17,
+          "avg_meeting_duration_minutes": 30,
+          "buffer_minutes": 15,
+          "avoids_back_to_back": true,
+          "morning_person_score": 0.8
+        },
+        "data_compressed": true,
+        "compression_period_days": 365
+      }
+    },
+    {
+      "user_id": "user-bob",
+      "email": "bob@company.com",
+      "name": "Bob Johnson",
+      "is_required": true,
+      "calendar_summary": {
+        "user_id": "user-bob",
+        "timezone": "UTC",
+        "busy_slots": [
+          {
+            "start": "2026-02-10T11:00:00Z",
+            "end": "2026-02-10T12:00:00Z",
+            "timezone": "UTC"
+          },
+          {
+            "start": "2026-02-11T09:00:00Z",
+            "end": "2026-02-11T10:00:00Z",
+            "timezone": "UTC"
+          },
+          {
+            "start": "2026-02-11T15:00:00Z",
+            "end": "2026-02-11T16:00:00Z",
+            "timezone": "UTC"
+          }
+        ],
+        "weekly_meeting_count": 12,
+        "peak_meeting_hours": [11, 13, 14, 15],
+        "preference_patterns": {
+          "preferred_days": ["monday", "wednesday", "friday"],
+          "preferred_hours_start": 10,
+          "preferred_hours_end": 18,
+          "avg_meeting_duration_minutes": 60,
+          "buffer_minutes": 10,
+          "avoids_back_to_back": false,
+          "morning_person_score": 0.4
+        },
+        "data_compressed": true,
+        "compression_period_days": 365
+      }
+    },
+    {
+      "user_id": "user-carol",
+      "email": "carol@company.com",
+      "name": "Carol Davis",
+      "is_required": false,
+      "calendar_summary": {
+        "user_id": "user-carol",
+        "timezone": "UTC",
+        "busy_slots": [
+          {
+            "start": "2026-02-10T13:00:00Z",
+            "end": "2026-02-10T14:00:00Z",
+            "timezone": "UTC"
+          },
+          {
+            "start": "2026-02-11T11:00:00Z",
+            "end": "2026-02-11T12:30:00Z",
+            "timezone": "UTC"
+          }
+        ],
+        "weekly_meeting_count": 8,
+        "peak_meeting_hours": [13, 14, 15],
+        "preference_patterns": {
+          "preferred_days": ["tuesday", "thursday"],
+          "preferred_hours_start": 13,
+          "preferred_hours_end": 17,
+          "avg_meeting_duration_minutes": 45,
+          "buffer_minutes": 20,
+          "avoids_back_to_back": true,
+          "morning_person_score": 0.3
+        },
+        "data_compressed": true,
+        "compression_period_days": 365
+      }
+    }
+  ],
+  "constraints": {
+    "duration_minutes": 60,
+    "earliest_date": "2026-02-10T00:00:00Z",
+    "latest_date": "2026-02-14T23:59:59Z",
+    "working_hours_start": 9,
+    "working_hours_end": 17,
+    "allowed_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    "buffer_minutes": 15,
+    "timezone": "UTC",
+    "max_candidates": 10
+  }
+}
