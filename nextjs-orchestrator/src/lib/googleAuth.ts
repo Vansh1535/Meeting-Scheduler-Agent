@@ -16,7 +16,7 @@ const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost
 
 // Required scopes for calendar access
 const SCOPES = [
-  'https://www.googleapis.com/auth/calendar.readonly', // Read calendar events (covers all event details)
+  'https://www.googleapis.com/auth/calendar', // Full calendar access (read + write)
   'https://www.googleapis.com/auth/userinfo.email', // Get user email
   'https://www.googleapis.com/auth/userinfo.profile', // Get user profile
 ];
