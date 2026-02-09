@@ -24,6 +24,7 @@ import type { ScheduleRequestWithEmails } from '@/types/scheduleRequest';
 import { persistSchedulingSession } from '@/lib/schedulingPersistence';
 import { isDatabaseEnabled } from '@/lib/supabase';
 import { enrichParticipantsWithCalendars, checkParticipantCalendarStatus } from '@/lib/participantEnrichment';
+import { applyEnforcementRules, type EnforcementContext, type CandidateSlot } from '@/lib/schedulingEnforcement';
 
 // Configuration
 const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || 'http://localhost:8000';
@@ -158,12 +159,98 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Return AI response unchanged
+    // Get AI response
     const aiResponse: ScheduleResponse = await pythonResponse.json();
+    
+    // ============================================================================
+    // STAGE 6: ENFORCEMENT LAYER
+    // Apply scheduling intelligence enforcement to filter/block candidates
+    // ============================================================================
+    console.log(`🛡️ Stage 6: Applying enforcement rules to ${aiResponse.candidates.length} candidates...`);
+    
+    // Extract compressed calendar data from first participant (all should have same view of availability)
+    const compressedCalendar = enrichedRequest.participants[0]?.calendar_summary?.busy_slots || [];
+    
+    // Apply enforcement to each candidate
+    const enforcedCandidates = [];
+    let blockedCount = 0;
+    let warningCount = 0;
+    
+    for (const candidate of aiResponse.candidates) {
+      const startTime = typeof candidate.slot.start === 'string' 
+        ? candidate.slot.start 
+        : new Date(candidate.slot.start).toISOString();
+      const endTime = typeof candidate.slot.end === 'string' 
+        ? candidate.slot.end 
+        : new Date(candidate.slot.end).toISOString();
+      
+      const context: EnforcementContext = {
+        meeting_id: enrichedRequest.meeting_id,
+        candidate: {
+          start_time: startTime,
+          end_time: endTime,
+          score: candidate.score,
+          reasoning: candidate.reasoning,
+        },
+        compressed_calendar: compressedCalendar.map((slot: any) => ({
+          start: typeof slot.start === 'string' ? slot.start : new Date(slot.start).toISOString(),
+          end: typeof slot.end === 'string' ? slot.end : new Date(slot.end).toISOString(),
+          summary: '',
+          location: '',
+        })),
+        buffer_minutes: enrichedRequest.constraints.buffer_minutes || 15,
+        timezone: enrichedRequest.constraints.timezone,
+        duration_minutes: enrichedRequest.constraints.duration_minutes,
+      };
+      
+      // Apply enforcement rules
+      const enforcement = await applyEnforcementRules(context);
+      
+      if (enforcement.action === 'block') {
+        blockedCount++;
+        // Don't include blocked candidates in response
+        console.log(`  ❌ BLOCKED: ${startTime} - ${enforcement.explanation}`);
+      } else {
+        // Include passed or warned candidates
+        if (enforcement.action === 'warn') {
+          warningCount++;
+          console.log(`  ⚠️  WARNING: ${startTime} - ${enforcement.explanation}`);
+        }
+        
+        // Enhance candidate with enforcement metadata
+        enforcedCandidates.push({
+          ...candidate,
+          enforcement: {
+            status: enforcement.action,
+            cancellation_risk: enforcement.cancellation_risk.risk,
+            cancellation_risk_score: enforcement.cancellation_risk.score,
+            time_savings_minutes: enforcement.time_savings.minutes_saved,
+            warnings: enforcement.warnings.map(w => w.reason),
+          },
+        });
+      }
+    }
+    
+    console.log(`✅ Enforcement complete:`);
+    console.log(`   - ${enforcedCandidates.length} candidates passed`);
+    console.log(`   - ${blockedCount} candidates blocked`);
+    console.log(`   - ${warningCount} candidates with warnings`);
+    
+    // Return filtered response with enforcement metadata
+    const enforcedResponse: ScheduleResponse = {
+      ...aiResponse,
+      candidates: enforcedCandidates,
+      enforcement_summary: {
+        total_candidates: aiResponse.candidates.length,
+        passed: enforcedCandidates.length,
+        blocked: blockedCount,
+        warnings: warningCount,
+      },
+    };
     
     // Persist to database (non-blocking - don't fail request on DB errors)
     if (isDatabaseEnabled()) {
-      persistSchedulingSession(enrichedRequest, aiResponse)
+      persistSchedulingSession(enrichedRequest, enforcedResponse)
         .then(() => {
           console.log(`✅ Successfully persisted scheduling session: ${enrichedRequest.meeting_id}`);
         })
@@ -175,11 +262,13 @@ export async function POST(request: NextRequest) {
       console.log('ℹ️ Database persistence is disabled (ENABLE_DATABASE_PERSISTENCE=false)');
     }
     
-    return NextResponse.json<ScheduleResponse>(aiResponse, {
+    return NextResponse.json<ScheduleResponse>(enforcedResponse, {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
         'X-AI-Processing-Time': `${aiResponse.processing_time_ms}ms`,
+        'X-Enforcement-Blocked': blockedCount.toString(),
+        'X-Enforcement-Warned': warningCount.toString(),
       },
     });
 
