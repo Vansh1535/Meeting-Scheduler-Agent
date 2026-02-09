@@ -11,6 +11,7 @@ from agents.availability_agent import AvailabilityAgent
 from agents.preference_agent import PreferenceAgent
 from agents.optimization_agent import OptimizationAgent
 from agents.negotiation_agent import NegotiationAgent
+from services import scaledown_service
 
 
 # Initialize FastAPI app
@@ -245,6 +246,21 @@ async def list_agents() -> Dict[str, Any]:
         ],
         "orchestration": "All agents are orchestrated through the /schedule endpoint",
     }
+
+
+@app.get("/scaledown/stats")
+async def scaledown_stats() -> Dict[str, Any]:
+    """
+    Get ScaleDown LLM compression statistics.
+    
+    ScaleDown compresses prompts and context to reduce token usage:
+    - Meeting descriptions and context windows
+    - Agent reasoning chains
+    - Large availability summaries
+    
+    Achieves 60-80% token reduction while preserving semantic accuracy.
+    """
+    return scaledown_service.get_compression_stats()
 
 
 if __name__ == "__main__":

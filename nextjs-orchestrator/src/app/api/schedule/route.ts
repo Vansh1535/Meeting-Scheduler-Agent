@@ -1,26 +1,29 @@
 /**
  * Next.js API Route: /api/schedule
  * 
- * Thin orchestration layer that forwards scheduling requests to the Python AI Brain.
+ * Orchestration layer that forwards scheduling requests to the Python AI Brain.
+ * 
+ * Stage 4 Enhancement: Now supports real Google Calendar data!
+ * - Accept participant emails → Lookup compressed calendars from Supabase
+ * - Transform compressed data → Python AI format
+ * - Forward enriched request to Python AI Brain
+ * - Python AI remains unchanged
  * 
  * Responsibilities:
- * - Accept POST requests with scheduling data
- * - Validate basic request structure
+ * - Accept POST requests (with participant_emails OR participants)
+ * - Enrich participants with real compressed calendar data
  * - Forward to Python FastAPI service
  * - Persist AI outputs to Supabase (if enabled)
  * - Handle errors and timeouts
  * - Return AI response unchanged
- * 
- * Does NOT:
- * - Implement AI logic (Python handles this)
- * - Call ScaleDown
- * - Modify responses (persistence is transparent)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import type { ScheduleRequest, ScheduleResponse, ErrorResponse } from '@/types/scheduling';
+import type { ScheduleRequestWithEmails } from '@/types/scheduleRequest';
 import { persistSchedulingSession } from '@/lib/schedulingPersistence';
 import { isDatabaseEnabled } from '@/lib/supabase';
+import { enrichParticipantsWithCalendars, checkParticipantCalendarStatus } from '@/lib/participantEnrichment';
 
 // Configuration
 const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || 'http://localhost:8000';
@@ -28,30 +31,96 @@ const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS || '30000', 1
 
 /**
  * POST /api/schedule
- * Forward scheduling request to Python AI Brain service.
+ * 
+ * Accepts two formats:
+ * 1. Legacy: { meeting_id, participants: [...], constraints }
+ * 2. New (Stage 4): { meeting_id, participant_emails: [...], constraints }
+ * 
+ * New format automatically fetches compressed calendars from Supabase.
  */
 export async function POST(request: NextRequest) {
   try {
     // Parse request body
-    const body: ScheduleRequest = await request.json();
+    const body: ScheduleRequestWithEmails = await request.json();
 
     // Basic validation
-    if (!body.meeting_id || !body.participants || !body.constraints) {
+    if (!body.meeting_id || !body.constraints) {
       return NextResponse.json<ErrorResponse>(
         {
           error: 'Invalid request',
-          message: 'Missing required fields: meeting_id, participants, or constraints',
+          message: 'Missing required fields: meeting_id or constraints',
           status: 400,
         },
         { status: 400 }
       );
     }
 
-    if (body.participants.length < 2) {
+    // Determine format and enrich participants if needed
+    let enrichedRequest: ScheduleRequest;
+
+    if (body.participant_emails && body.participant_emails.length > 0) {
+      // New format: Enrich participants with compressed calendars
+      console.log(`📧 Stage 4: Enriching ${body.participant_emails.length} participants with real calendar data...`);
+
+      if (body.participant_emails.length < 2) {
+        return NextResponse.json<ErrorResponse>(
+          {
+            error: 'Invalid request',
+            message: 'At least 2 participant emails are required',
+            status: 400,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Check calendar status for informational purposes
+      const calendarStatus = await checkParticipantCalendarStatus(body.participant_emails);
+      
+      if (calendarStatus.without_calendars.length > 0) {
+        console.warn(`⚠️  ${calendarStatus.without_calendars.length} participants missing compressed calendars:`);
+        console.warn(`   ${calendarStatus.without_calendars.join(', ')}`);
+        console.warn(`   Using mock data as fallback.`);
+      }
+
+      // Enrich participants with compressed calendar data
+      const enrichedParticipants = await enrichParticipantsWithCalendars(
+        body.participant_emails,
+        body.constraints.timezone
+      );
+
+      enrichedRequest = {
+        meeting_id: body.meeting_id,
+        participants: enrichedParticipants,
+        constraints: body.constraints,
+        preferences: body.preferences,
+      };
+
+      console.log(`✅ Enriched request with ${enrichedParticipants.length} participants`);
+      console.log(`   Real calendars: ${enrichedParticipants.filter(p => p.calendar_summary.data_compressed).length}`);
+      console.log(`   Mock calendars: ${enrichedParticipants.filter(p => !p.calendar_summary.data_compressed).length}`);
+
+    } else if (body.participants && body.participants.length > 0) {
+      // Legacy format: Use provided participants
+      console.log(`📝 Legacy format: Using ${body.participants.length} provided participants`);
+
+      if (body.participants.length < 2) {
+        return NextResponse.json<ErrorResponse>(
+          {
+            error: 'Invalid request',
+            message: 'At least 2 participants are required',
+            status: 400,
+          },
+          { status: 400 }
+        );
+      }
+
+      enrichedRequest = body as ScheduleRequest;
+
+    } else {
       return NextResponse.json<ErrorResponse>(
         {
           error: 'Invalid request',
-          message: 'At least 2 participants are required',
+          message: 'Either participant_emails or participants must be provided',
           status: 400,
         },
         { status: 400 }
@@ -67,7 +136,7 @@ export async function POST(request: NextRequest) {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(enrichedRequest), // Send enriched request to Python
       signal: controller.signal,
     });
 
@@ -94,12 +163,12 @@ export async function POST(request: NextRequest) {
     
     // Persist to database (non-blocking - don't fail request on DB errors)
     if (isDatabaseEnabled()) {
-      persistSchedulingSession(body, aiResponse)
+      persistSchedulingSession(enrichedRequest, aiResponse)
         .then(() => {
-          console.log(`✅ Successfully persisted scheduling session: ${body.meeting_id}`);
+          console.log(`✅ Successfully persisted scheduling session: ${enrichedRequest.meeting_id}`);
         })
         .catch((error) => {
-          console.error(`⚠️ Failed to persist scheduling session ${body.meeting_id}:`, error);
+          console.error(`⚠️ Failed to persist scheduling session ${enrichedRequest.meeting_id}:`, error);
           // Continue anyway - persistence failure shouldn't break the API response
         });
     } else {
