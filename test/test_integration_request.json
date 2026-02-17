@@ -1,0 +1,23 @@
+{
+  "meeting_id": "test-meeting-001",
+  "participant_emails": [
+    "alice@example.com",
+    "bob@example.com",
+    "carol@example.com"
+  ],
+  "constraints": {
+    "duration_minutes": 60,
+    "earliest_date": "2026-02-17T00:00:00Z",
+    "latest_date": "2026-02-24T00:00:00Z",
+    "working_hours_start": 9,
+    "working_hours_end": 17,
+    "allowed_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    "buffer_minutes": 15,
+    "max_candidates": 5,
+    "timezone": "UTC"
+  },
+  "preferences": {
+    "meeting_title": "Team Sync Meeting",
+    "description": "Weekly team synchronization"
+  }
+}

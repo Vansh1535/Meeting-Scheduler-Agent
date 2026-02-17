@@ -31,3 +31,8 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+
+# Node modules (frontend dependencies)
+node_modules/
+package-lock.json
+**/node_modules/
