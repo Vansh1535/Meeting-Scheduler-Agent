@@ -1,8 +1,8 @@
 import { supabase } from '@/lib/supabase'
 
-export type AnalyticsPeriod = 'week' | 'month' | 'year'
+export type AnalyticsPeriod = 'week' | 'month' | 'year' | 'current_month'
 
-const PERIOD_DAYS: Record<AnalyticsPeriod, number> = {
+const PERIOD_DAYS: Record<Exclude<AnalyticsPeriod, 'current_month'>, number> = {
   week: 7,
   month: 30,
   year: 365,
@@ -10,7 +10,13 @@ const PERIOD_DAYS: Record<AnalyticsPeriod, number> = {
 
 function getPeriodStart(period: AnalyticsPeriod): Date {
   const now = new Date()
-  const days = PERIOD_DAYS[period]
+  
+  if (period === 'current_month') {
+    // Start of current calendar month
+    return new Date(now.getFullYear(), now.getMonth(), 1)
+  }
+  
+  const days = PERIOD_DAYS[period as 'week' | 'month' | 'year']
   const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
   return start
 }
@@ -34,8 +40,9 @@ export async function getMeetingsForUser(userId: string, period: AnalyticsPeriod
 
   const { data, error } = await supabase
     .from('meetings')
-    .select('id, duration_minutes, requested_at, success')
+    .select('id, duration_minutes, requested_at, success, status')
     .in('id', meetingIds)
+    .eq('status', 'scheduled') // Only count scheduled meetings
 
   if (error || !data) {
     return []

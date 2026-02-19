@@ -9,7 +9,7 @@
  * 5. Track sync operation metrics
  */
 
-import { supabase } from './supabase';
+import { supabaseAdmin as supabase } from './supabase'; // Use admin for sync operations (writes)
 import { fetchCalendarEvents, storeCalendarEvents, CalendarEvent } from './googleCalendar';
 import { compressCalendarHistory, CalendarCompressionResponse } from './scaledown';
 
@@ -25,6 +25,7 @@ export interface SyncResult {
   eventsFetched: number;
   eventsAdded: number;
   eventsUpdated: number;
+  eventsDeleted: number;
   compressionCompleted: boolean;
   compressionRatio?: number;
   totalDurationMs: number;
@@ -95,15 +96,18 @@ export async function syncUserCalendar(
     // Step 2: Store events in database
     console.log(`💾 Step 2/4: Storing ${events.length} events in database...`);
 
-    const { added, updated } = await storeCalendarEvents(userId, events);
+    const { added, updated, deleted } = await storeCalendarEvents(userId, events);
 
     await supabase
       .from('calendar_sync_history')
       .update({
         events_added: added,
         events_updated: updated,
+        events_deleted: deleted,
       })
       .eq('id', syncId);
+
+    console.log(`📊 Sync stats: ${added} added, ${updated} updated, ${deleted} deleted`);
 
     // Step 3: Compress with ScaleDown (if enabled)
     let compressionCompleted = false;
@@ -173,6 +177,7 @@ export async function syncUserCalendar(
       eventsFetched: events.length,
       eventsAdded: added,
       eventsUpdated: updated,
+      eventsDeleted: deleted,
       compressionCompleted,
       compressionRatio,
       totalDurationMs: totalDuration,
@@ -203,6 +208,7 @@ export async function syncUserCalendar(
       eventsFetched: 0,
       eventsAdded: 0,
       eventsUpdated: 0,
+      eventsDeleted: 0,
       compressionCompleted: false,
       totalDurationMs: Date.now() - startTime,
       error: error.message,

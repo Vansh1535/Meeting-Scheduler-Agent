@@ -7,7 +7,7 @@
 
 import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
-import { supabase } from './supabase';
+import { supabaseAdmin } from './supabase'; // Use admin for OAuth tokens
 
 // OAuth configuration
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
@@ -53,15 +53,19 @@ export function createOAuth2Client(): OAuth2Client {
 
 /**
  * Generate OAuth authorization URL
+ * @param userId - User ID to store in state for validation
+ * @param loginHint - Email to pre-select in Google account picker
  */
-export function getAuthorizationUrl(): string {
+export function getAuthorizationUrl(userId?: string, loginHint?: string): string {
   const oauth2Client = createOAuth2Client();
   
   return oauth2Client.generateAuthUrl({
     access_type: 'offline', // Request refresh token
     scope: SCOPES,
-    prompt: 'consent', // Force consent screen to ensure refresh token
+    prompt: 'select_account', // Force account picker to prevent wrong account
     include_granted_scopes: true,
+    state: userId ? JSON.stringify({ userId }) : undefined, // Pass userId for validation
+    login_hint: loginHint, // Pre-select correct Google account
   });
 }
 
@@ -113,7 +117,7 @@ export async function getUserProfile(accessToken: string): Promise<UserProfile> 
  */
 export async function upsertUserAccount(profile: UserProfile): Promise<string> {
   // Check if user exists by google_user_id OR email
-  const { data: existingUser } = await supabase
+  const { data: existingUser } = await supabaseAdmin
     .from('user_accounts')
     .select('id')
     .or(`google_user_id.eq.${profile.google_user_id},email.eq.${profile.email}`)
@@ -121,7 +125,7 @@ export async function upsertUserAccount(profile: UserProfile): Promise<string> {
 
   if (existingUser) {
     // Update existing user
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('user_accounts')
       .update({
         google_user_id: profile.google_user_id,
@@ -136,7 +140,7 @@ export async function upsertUserAccount(profile: UserProfile): Promise<string> {
     return existingUser.id;
   } else {
     // Create new user
-    const { data: newUser, error } = await supabase
+    const { data: newUser, error } = await supabaseAdmin
       .from('user_accounts')
       .insert({
         google_user_id: profile.google_user_id,
@@ -163,7 +167,7 @@ export async function storeOAuthTokens(
   userId: string,
   tokens: GoogleTokens
 ): Promise<void> {
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from('oauth_tokens')
     .upsert({
       user_id: userId,
@@ -185,7 +189,7 @@ export async function storeOAuthTokens(
  * Get OAuth tokens from database
  */
 export async function getOAuthTokens(userId: string): Promise<GoogleTokens | null> {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('oauth_tokens')
     .select('*')
     .eq('user_id', userId)
@@ -302,7 +306,7 @@ export async function revokeOAuthAccess(userId: string): Promise<void> {
   }
 
   // Delete tokens from database
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from('oauth_tokens')
     .delete()
     .eq('user_id', userId)

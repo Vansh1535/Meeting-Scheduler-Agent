@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { useCalendarEvents } from '@/hooks/use-api'
+import { useCalendarEvents } from '@/hooks/use-calendar'
 
 const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b']
 
@@ -182,19 +182,19 @@ export function AnalyticsCharts() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-3xl font-bold mb-1">{summary.avgDailyHours}h</div>
-            <p className="text-muted-foreground text-sm">Avg daily time scheduled</p>
+            <p className="text-muted-foreground text-sm">Avg daily time (last 30 days)</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-3xl font-bold mb-1">{summary.completionRate}%</div>
-            <p className="text-muted-foreground text-sm">Schedule completion rate</p>
+            <p className="text-muted-foreground text-sm">Completion rate (last 30 days)</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-3xl font-bold mb-1">{summary.totalEvents}</div>
-            <p className="text-muted-foreground text-sm">Total events this month</p>
+            <p className="text-muted-foreground text-sm">Total events (last 30 days)</p>
           </CardContent>
         </Card>
       </div>

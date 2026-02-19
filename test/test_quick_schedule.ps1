@@ -2,7 +2,7 @@
 # Creates a test event using the quick schedule API
 
 $ProgressPreference = 'SilentlyContinue'
-$baseUrl = "http://localhost:3001"
+$baseUrls = @("http://localhost:3001", "http://localhost:3000")
 
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "Testing Quick Schedule API" -ForegroundColor Cyan
@@ -10,7 +10,7 @@ Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host ""
 
 $body = @{
-    userId = "demo-user-123"
+    userId = "1799d245-456f-4b64-ba14-f31e2e5f6b2d"
     title = "Integration Test Meeting"
     description = "Testing the quick schedule endpoint"
     duration = 30
@@ -27,10 +27,33 @@ Write-Host $body -ForegroundColor Gray
 Write-Host ""
 
 try {
-    $response = Invoke-RestMethod -Uri "$baseUrl/api/schedule/quick" -Method Post -Body $body -ContentType "application/json"
+    $response = $null
+    foreach ($url in $baseUrls) {
+        try {
+            $response = Invoke-RestMethod -Uri "$url/api/schedule/quick" -Method Post -Body $body -ContentType "application/json" -TimeoutSec 10
+            break
+        } catch {
+            $statusCode = $null
+            if ($_.Exception.Response) {
+                try { $statusCode = [int]$_.Exception.Response.StatusCode } catch { $statusCode = $null }
+            }
+
+            if ($statusCode -eq 404 -or $statusCode -eq 405) {
+                continue
+            }
+
+            if ($_.Exception.Message -notlike "*Unable to connect*") {
+                throw
+            }
+        }
+    }
+
+    if (-not $response) {
+        throw "Unable to connect to the remote server"
+    }
     
     if ($response.success) {
-        Write-Host "✅ Quick Schedule API working!" -ForegroundColor Green
+        Write-Host "Quick Schedule API working!" -ForegroundColor Green
         Write-Host ""
         Write-Host "Response:" -ForegroundColor Cyan
         Write-Host "  - Success: $($response.success)" -ForegroundColor Gray
@@ -38,7 +61,7 @@ try {
         
         if ($response.demo) {
             Write-Host ""
-            Write-Host "⚠️  Note: Running in DEMO mode (Python AI not connected)" -ForegroundColor Yellow
+            Write-Host "NOTE: Running in DEMO mode (Python AI not connected)" -ForegroundColor Yellow
             Write-Host "   The event was created but not processed by AI" -ForegroundColor Gray
             Write-Host ""
             Write-Host "To enable full AI processing:" -ForegroundColor Cyan
@@ -46,33 +69,44 @@ try {
             Write-Host "  2. Re-run this test" -ForegroundColor Gray
         } else {
             Write-Host ""
-            Write-Host "✅ Full AI processing completed!" -ForegroundColor Green
+            Write-Host "Full AI processing completed!" -ForegroundColor Green
             if ($response.scheduledSlot) {
                 Write-Host "  - Scheduled: $($response.scheduledSlot.start)" -ForegroundColor Gray
                 Write-Host "  - Score: $($response.scheduledSlot.score)" -ForegroundColor Gray
             }
         }
     } else {
-        Write-Host "❌ Quick Schedule failed" -ForegroundColor Red
+        Write-Host "ERROR: Quick Schedule failed" -ForegroundColor Red
         Write-Host "$($response | ConvertTo-Json -Depth 5)" -ForegroundColor Gray
     }
 } catch {
-    $errorDetails = $_.ErrorDetails.Message | ConvertFrom-Json
-    
-    if ($errorDetails.demo -eq $true -and $errorDetails.success -eq $true) {
-        Write-Host "✅ Quick Schedule API working (Demo Mode)!" -ForegroundColor Green
+    $errorDetails = $null
+    if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+        try {
+            $errorDetails = $_.ErrorDetails.Message | ConvertFrom-Json -ErrorAction Stop
+        } catch {
+            $errorDetails = $null
+        }
+    }
+
+    if ($errorDetails -and $errorDetails.demo -eq $true -and $errorDetails.success -eq $true) {
+        Write-Host "Quick Schedule API working (Demo Mode)!" -ForegroundColor Green
         Write-Host ""
         Write-Host "Response:" -ForegroundColor Cyan
         Write-Host "  - Success: $($errorDetails.success)" -ForegroundColor Gray
         Write-Host "  - Meeting ID: $($errorDetails.meetingId)" -ForegroundColor Gray
         Write-Host "  - Message: $($errorDetails.message)" -ForegroundColor Gray
         Write-Host ""
-        Write-Host "⚠️  Note: Python AI service not running" -ForegroundColor Yellow
+        Write-Host "NOTE: Python AI service not running" -ForegroundColor Yellow
         Write-Host "   The API is working, but full scheduling requires Python service" -ForegroundColor Gray
     } else {
-        Write-Host "❌ Quick Schedule API failed: $_" -ForegroundColor Red
+        Write-Host "ERROR: Quick Schedule API failed: $($_.Exception.Message)" -ForegroundColor Red
         Write-Host "Error Details:" -ForegroundColor Gray
-        Write-Host $_ -ForegroundColor Gray
+        if ($errorDetails) {
+            Write-Host ($errorDetails | ConvertTo-Json -Depth 5) -ForegroundColor Gray
+        } else {
+            Write-Host $_ -ForegroundColor Gray
+        }
     }
 }
 

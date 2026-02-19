@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { HeroSection } from '@/components/landing/hero-section'
 import { FeaturesSection } from '@/components/landing/features-section'
@@ -11,7 +11,7 @@ import { CTASection } from '@/components/landing/cta-section'
 import { saveAuthSession } from '@/lib/auth-session'
 import { toast } from 'sonner'
 
-export default function LandingPage() {
+function LandingContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -71,5 +71,13 @@ export default function LandingPage() {
       <StatsSection />
       <CTASection />
     </main>
+  )
+}
+
+export default function LandingPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <LandingContent />
+    </Suspense>
   )
 }

@@ -1,14 +1,38 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { useUser } from '@/contexts/user-context'
-import { useCalendarEvents } from '@/hooks/use-api'
+import { useCalendarEvents } from '@/hooks/use-calendar'
+import { EventDetailDialog } from './event-detail-dialog'
 
-export function MonthView() {
+// Category color mapping for glow effects
+const categoryGlowColors = {
+  meeting: { from: 'from-blue-500', to: 'to-purple-500', shadow: 'shadow-blue-500/50' },
+  personal: { from: 'from-green-500', to: 'to-emerald-500', shadow: 'shadow-green-500/50' },
+  work: { from: 'from-slate-500', to: 'to-gray-600', shadow: 'shadow-slate-500/50' },
+  social: { from: 'from-orange-500', to: 'to-amber-500', shadow: 'shadow-orange-500/50' },
+  health: { from: 'from-red-500', to: 'to-pink-500', shadow: 'shadow-red-500/50' },
+}
+
+interface MonthViewProps {
+  highlightEvent?: {
+    event: any
+    category: string
+    timestamp: number
+  } | null
+  onMonthChange?: (date: Date) => void
+}
+
+export function MonthView({ highlightEvent, onMonthChange }: MonthViewProps) {
   const [date, setDate] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [showEventDialog, setShowEventDialog] = useState(false)
+  const [highlightedDay, setHighlightedDay] = useState<number | null>(null)
+  const [highlightCategory, setHighlightCategory] = useState<string>('meeting')
+  const [showGlowOnDialog, setShowGlowOnDialog] = useState(false)
   const { user } = useUser()
   
   const daysInMonth = (date: Date) => {
@@ -20,11 +44,15 @@ export function MonthView() {
   }
 
   const previousMonth = () => {
-    setDate(new Date(date.getFullYear(), date.getMonth() - 1))
+    const newDate = new Date(date.getFullYear(), date.getMonth() - 1)
+    setDate(newDate)
+    onMonthChange?.(newDate)
   }
 
   const nextMonth = () => {
-    setDate(new Date(date.getFullYear(), date.getMonth() + 1))
+    const newDate = new Date(date.getFullYear(), date.getMonth() + 1)
+    setDate(newDate)
+    onMonthChange?.(newDate)
   }
 
   const monthName = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
@@ -36,7 +64,85 @@ export function MonthView() {
   const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59).toISOString()
 
   // Fetch events for the current month
-  const { data: events, isLoading } = useCalendarEvents(startDate, endDate)
+  const { data: events, isLoading, error } = useCalendarEvents(startDate, endDate)
+
+  // Handle highlighted event from category navigation
+  useEffect(() => {
+    if (!highlightEvent || !highlightEvent.event) return
+    
+    console.log('✨ Highlight event received:', highlightEvent)
+    
+    const eventDate = new Date(highlightEvent.event.startTime || highlightEvent.event.start_time)
+    const day = eventDate.getDate()
+    
+    console.log('🎯 Highlighting day:', day, 'with category:', highlightEvent.category)
+    
+    // Track all timers for cleanup
+    let startTimer: NodeJS.Timeout | null = null
+    let openTimer: NodeJS.Timeout | null = null
+    let glowTimer: NodeJS.Timeout | null = null
+    
+    // Close any existing dialog first to prevent flickering
+    const wasDialogOpen = showEventDialog
+    if (wasDialogOpen) {
+      setShowEventDialog(false)
+      // Clear any existing highlights immediately
+      setHighlightedDay(null)
+      setShowGlowOnDialog(false)
+    }
+    
+    // Wait longer if dialog was open to ensure smooth close
+    const startDelay = wasDialogOpen ? 300 : 0
+    
+    startTimer = setTimeout(() => {
+      // Set highlight with category color
+      setHighlightedDay(day)
+      setHighlightCategory(highlightEvent.category)
+      setShowGlowOnDialog(true)
+      
+      // After 2.5 seconds, open the event dialog
+      openTimer = setTimeout(() => {
+        console.log('⏰ Opening dialog for day:', day)
+        const clickedDate = new Date(date.getFullYear(), date.getMonth(), day)
+        
+        // Clear glow and highlight before opening dialog to prevent flicker
+        setHighlightedDay(null)
+        setShowGlowOnDialog(false)
+        
+        // Small delay to ensure animations complete
+        setTimeout(() => {
+          setSelectedDate(clickedDate)
+          setShowEventDialog(true)
+          setHighlightCategory(highlightEvent.category) // Re-set for dialog ring effect
+          
+          // Clear dialog glow effect after 2 seconds
+          glowTimer = setTimeout(() => {
+            setHighlightCategory(null)
+          }, 2000)
+        }, 100)
+      }, 2500)
+    }, startDelay)
+    
+    // Cleanup all timers
+    return () => {
+      if (startTimer) clearTimeout(startTimer)
+      if (openTimer) clearTimeout(openTimer)
+      if (glowTimer) clearTimeout(glowTimer)
+    }
+  }, [highlightEvent?.timestamp]) // Only re-run when timestamp changes
+
+  // Notify parent of initial/current month
+  useEffect(() => {
+    onMonthChange?.(date)
+  }, [date])
+
+  console.log('📅 Calendar Month View:', {
+    startDate,
+    endDate,
+    eventsCount: events?.length || 0,
+    isLoading,
+    hasError: !!error
+  })
 
   // Calculate which days have events
   const eventDates = new Set<number>()
@@ -44,7 +150,7 @@ export function MonthView() {
   
   if (events && Array.isArray(events)) {
     events.forEach((event: any) => {
-      const eventDate = new Date(event.startTime)
+      const eventDate = new Date(event.startTime || event.start_time)
       if (eventDate.getMonth() === date.getMonth() && eventDate.getFullYear() === date.getFullYear()) {
         const day = eventDate.getDate()
         eventDates.add(day)
@@ -56,6 +162,11 @@ export function MonthView() {
       }
     })
   }
+
+  console.log('📊 Calendar stats:', {
+    eventDatesCount: eventDates.size,
+    eventsByDateCount: eventsByDate.size
+  })
 
   return (
     <Card>
@@ -100,16 +211,31 @@ export function MonthView() {
                 const hasEvents = eventDates.has(day)
                 const dayEvents = eventsByDate.get(day) || []
                 const eventCount = dayEvents.length
+                const isHighlighted = highlightedDay === day
+                
+                // Get category-specific glow colors
+                const glowColors = categoryGlowColors[highlightCategory as keyof typeof categoryGlowColors] || categoryGlowColors.meeting
+                
+                const handleDayClick = () => {
+                  if (hasEvents) {
+                    const clickedDate = new Date(date.getFullYear(), date.getMonth(), day)
+                    setSelectedDate(clickedDate)
+                    setShowEventDialog(true)
+                  }
+                }
                 
                 return (
                   <div
                     key={day}
+                    onClick={handleDayClick}
                     className={`aspect-square flex items-center justify-center rounded-xl text-sm font-semibold transition-all border cursor-pointer ${
-                      hasEvents
-                        ? 'bg-gradient-to-br from-blue-500 to-purple-500 text-white border-transparent shadow-elevation-2 hover:shadow-elevation-3'
+                      isHighlighted
+                        ? `bg-gradient-to-br ${glowColors.from} ${glowColors.to} text-white border-transparent shadow-2xl ${glowColors.shadow} scale-110 animate-pulse`
+                        : hasEvents
+                        ? 'bg-gradient-to-br from-blue-500 to-purple-500 text-white border-transparent shadow-elevation-2 hover:shadow-elevation-3 hover:scale-105'
                         : 'bg-muted/70 text-foreground border-border/70 hover:bg-muted'
                     }`}
-                    title={hasEvents ? `${eventCount} event${eventCount > 1 ? 's' : ''}` : ''}
+                    title={hasEvents ? `${eventCount} event${eventCount > 1 ? 's' : ''} - Click to view` : ''}
                   >
                     <div className="text-center">
                       <div>{day}</div>
@@ -156,6 +282,15 @@ export function MonthView() {
           </>
         )}
       </CardContent>
+
+      {/* Event Detail Dialog */}
+      <EventDetailDialog
+        open={showEventDialog}
+        onOpenChange={setShowEventDialog}
+        events={selectedDate ? eventsByDate.get(selectedDate.getDate()) || [] : []}
+        selectedDate={selectedDate || undefined}
+        highlightCategory={showGlowOnDialog ? highlightCategory : undefined}
+      />
     </Card>
   )
 }

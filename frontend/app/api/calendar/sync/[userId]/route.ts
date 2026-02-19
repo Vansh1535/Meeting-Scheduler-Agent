@@ -49,6 +49,7 @@ export async function POST(
       events_fetched: result.eventsFetched,
       events_added: result.eventsAdded,
       events_updated: result.eventsUpdated,
+      events_deleted: result.eventsDeleted,
       compression_completed: result.compressionCompleted,
       compression_ratio: result.compressionRatio,
       duration_ms: result.totalDurationMs,

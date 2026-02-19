@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios'
+import { ApiErrorHandler, ApiError } from './api-error-handler'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ''
 
@@ -14,17 +15,13 @@ class ApiClient {
       timeout: 30000, // 30 seconds
     })
 
-    // Add response interceptor for error handling
+    // Add response interceptor for error handling - DON'T silently swallow errors
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        // Silently handle network errors when backend is not running
-        if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
-          // Backend not available - this is expected in demo mode
-          return Promise.reject({ ...error, isNetworkError: true, silent: true })
-        }
-        console.error('API Error:', error.response?.data || error.message)
-        return Promise.reject(error)
+        // Parse and categorize the error
+        const parsedError = ApiErrorHandler.parseError(error)
+        return Promise.reject(parsedError)
       }
     )
   }
@@ -36,74 +33,31 @@ class ApiClient {
    * @param scheduleRequest - Schedule request data
    */
   async createSchedule(scheduleRequest: ScheduleRequest) {
-    try {
-      // Use the quick schedule endpoint which handles frontend format
-      const response = await this.client.post('/api/schedule/quick', scheduleRequest)
-      return response.data
-    } catch (error: any) {
-      // If backend is down, return demo success
-      if (error.isNetworkError || error.silent) {
-        return {
-          success: true,
-          demo: true,
-          meetingId: `demo-${Date.now()}`,
-          message: 'Event created in demo mode (backend not connected)',
-        }
-      }
-      throw error
-    }
+    const response = await this.client.post('/api/schedule/quick', scheduleRequest)
+    return response.data
   }
 
   /**
    * Get schedule recommendations based on preferences
    */
   async getScheduleRecommendations(preferences: any) {
-    try {
-      const response = await this.client.post('/api/schedule/recommendations', preferences)
-      return response.data
-    } catch (error: any) {
-      if (error.isNetworkError || error.silent) {
-        return { recommendations: [], demo: true }
-      }
-      throw error
-    }
+    const response = await this.client.post('/api/schedule/recommendations', preferences)
+    return response.data
   }
 
   // ==================== CALENDAR ====================
-
-  /*try {
-      const params = new URLSearchParams()
-      if (startDate) params.append('startDate', startDate)
-      if (endDate) params.append('endDate', endDate)
-      
-      const response = await this.client.get(`/api/calendar/${userId}?${params}`)
-      return response.data
-    } catch (error: any) {
-      if (error.isNetworkError || error.silent) {
-        return { events: [], demo: true }
-      }
-      throw error
-    }
-  }
 
   /**
    * Get user's calendar events
    */
   async getCalendarEvents(userId: string, startDate?: string, endDate?: string) {
-    try {
-      const params = new URLSearchParams()
-      params.append('userId', userId)
-      if (startDate) params.append('startDate', startDate)
-      if (endDate) params.append('endDate', endDate)
-      
-      const response = await this.client.get(`/api/calendar/events?${params}`)
-      return response.data || []
-    } catch (error: any) {
-      if (error.isNetworkError || error.silent) {
-        return []
-      }
-      throw error
-    }
+    const params = new URLSearchParams()
+    params.append('userId', userId)
+    if (startDate) params.append('startDate', startDate)
+    if (endDate) params.append('endDate', endDate)
+    
+    const response = await this.client.get(`/api/calendar/events?${params}`)
+    return response.data || []
   }
 
   /**
@@ -127,9 +81,9 @@ class ApiClient {
   /**
    * Get user analytics and statistics
    * @param userId - User ID
-   * @param period - Time period (week, month, year)
+   * @param period - Time period (week, month, year, current_month)
    */
-  async getAnalytics(userId: string, period: 'week' | 'month' | 'year' = 'month') {
+  async getAnalytics(userId: string, period: 'week' | 'month' | 'year' | 'current_month' = 'month') {
     const response = await this.client.get(`/api/analytics/${userId}?period=${period}`)
     return response.data
   }
@@ -290,7 +244,7 @@ export const api = {
   writeToGoogle: (userId: string, eventData: any) => apiClient.writeToGoogleCalendar(userId, eventData),
   
   // Analytics
-  getAnalytics: (userId: string, period?: 'week' | 'month' | 'year') => 
+  getAnalytics: (userId: string, period?: 'week' | 'month' | 'year' | 'current_month') => 
     apiClient.getAnalytics(userId, period),
   getTimeSaved: (userId: string) => apiClient.getTimeSaved(userId),
   getMeetingQuality: (userId: string) => apiClient.getMeetingQuality(userId),

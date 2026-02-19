@@ -68,6 +68,33 @@ export interface MeetingSlotCandidate {
   conflicts: string[];
   all_participants_available: boolean;
   reasoning: string;
+  // Phase 2: AI Analysis Breakdown
+  breakdown?: {
+    availability: number;
+    preference: number;
+    conflict_proximity: number;
+    fragmentation: number;
+    optimization?: number;
+    weights?: {
+      availability: 35;
+      preference: 25;
+      conflict_proximity: 20;
+      fragmentation: 15;
+      optimization: 5;
+    };
+  };
+  participant_scores?: {
+    [userId: string]: {
+      availability: number;
+      preference: number;
+      has_conflict: boolean;
+    };
+  };
+  warning_details?: Array<{
+    reason: string;
+    severity: 'low' | 'medium' | 'high';
+    affected_participant?: string;
+  }>;
 }
 
 export interface ScheduleResponse {

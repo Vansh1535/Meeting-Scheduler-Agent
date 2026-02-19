@@ -12,13 +12,15 @@ import {
   upsertUserAccount,
   storeOAuthTokens,
 } from '@/lib/googleAuth';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
-    // Extract authorization code from query params
+    // Extract authorization code and state from query params
     const searchParams = request.nextUrl.searchParams;
     const code = searchParams.get('code');
     const error = searchParams.get('error');
+    const state = searchParams.get('state');
 
     // Handle user denial
     if (error) {
@@ -33,6 +35,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // SECURITY: Extract userId from state parameter
+    let expectedUserId: string | undefined;
+    if (state) {
+      try {
+        const stateData = JSON.parse(state);
+        expectedUserId = stateData.userId;
+      } catch (e) {
+        console.warn('Failed to parse state parameter:', e);
+      }
+    }
+
     console.log('📝 Exchanging authorization code for tokens...');
 
     // Exchange code for tokens
@@ -45,8 +58,29 @@ export async function GET(request: NextRequest) {
 
     console.log(`✅ User authenticated: ${profile.email}`);
 
-    // Create or update user account
-    const userId = await upsertUserAccount(profile);
+    // SECURITY FIX: If we have expectedUserId, validate email matches
+    if (expectedUserId) {
+      const { data: expectedUser, error: userError } = await supabaseAdmin
+        .from('user_accounts')
+        .select('email')
+        .eq('id', expectedUserId)
+        .single();
+
+      if (!userError && expectedUser && expectedUser.email !== profile.email) {
+        console.error(`❌ Email mismatch: Expected ${expectedUser.email}, got ${profile.email}`);
+        return NextResponse.redirect(
+          new URL(
+            `/?error=email_mismatch&message=${encodeURIComponent(
+              `Please connect the Google account associated with ${expectedUser.email}, not ${profile.email}`
+            )}`,
+            request.url
+          )
+        );
+      }
+    }
+
+    // Use expectedUserId if available, otherwise create/find user
+    const userId = expectedUserId || (await upsertUserAccount(profile));
 
     console.log('💾 Storing OAuth tokens...');
 

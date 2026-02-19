@@ -7,7 +7,7 @@
 
 import { google, calendar_v3 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
-import { supabase } from './supabase';
+import { supabase, supabaseAdmin } from './supabase'; // Admin for writes, anon for reads
 import { getAuthenticatedClient } from './googleAuth';
 
 export interface CalendarEvent {
@@ -147,13 +147,17 @@ function parseGoogleEvent(
 
 /**
  * Store calendar events in Supabase database
+ * ALSO deletes events that no longer exist in Google Calendar
  */
 export async function storeCalendarEvents(
   userId: string,
   events: CalendarEvent[]
-): Promise<{ added: number; updated: number }> {
+): Promise<{ added: number; updated: number; deleted: number }> {
   let added = 0;
   let updated = 0;
+
+  // Get list of current google_event_ids
+  const currentEventIds = events.map(e => e.google_event_id);
 
   // Process in batches to avoid overwhelming the database
   const batchSize = 100;
@@ -227,9 +231,35 @@ export async function storeCalendarEvents(
     console.log(`Processed batch ${Math.floor(i / batchSize) + 1}: ${batch.length} events`);
   }
 
-  console.log(`✅ Stored events: ${added} added, ${updated} updated`);
+  // DELETE events that no longer exist in Google Calendar
+  let deleted = 0;
+  if (currentEventIds.length > 0) {
+    const { data: deletedEvents, error: deleteError } = await supabase
+      .from('calendar_events')
+      .delete()
+      .eq('user_id', userId)
+      .not('google_event_id', 'in', `(${currentEventIds.join(',')})`)
+      .select('id');
 
-  return { added, updated };
+    if (!deleteError && deletedEvents) {
+      deleted = deletedEvents.length;
+    }
+  } else {
+    // If no events from Google, delete all events for this user
+    const { data: deletedEvents, error: deleteError } = await supabase
+      .from('calendar_events')
+      .delete()
+      .eq('user_id', userId)
+      .select('id');
+
+    if (!deleteError && deletedEvents) {
+      deleted = deletedEvents.length;
+    }
+  }
+
+  console.log(`✅ Stored events: ${added} added, ${updated} updated, ${deleted} deleted`);
+
+  return { added, updated, deleted };
 }
 
 /**

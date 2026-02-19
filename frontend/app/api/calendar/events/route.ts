@@ -21,6 +21,8 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
+    // Reduce console spam - only log errors
+
     if (!userId) {
       return NextResponse.json<ErrorResponse>(
         {
@@ -49,10 +51,12 @@ export async function GET(request: NextRequest) {
     const { data: events, error: fetchError } = await query
 
     if (fetchError) {
-      console.error('Failed to fetch events:', fetchError)
+      console.error('❌ Failed to fetch events from Supabase:', fetchError)
       // Return empty array as fallback
       return NextResponse.json([])
     }
+
+    // Silent polling
 
     // Transform to frontend format
     const transformedEvents = (events || []).map((event: any) => ({
@@ -67,11 +71,12 @@ export async function GET(request: NextRequest) {
       timezone: event.timezone,
       attendeeCount: event.attendee_count,
       isOrganizer: event.is_organizer,
+      source: 'google', // All events from this endpoint are from Google Calendar
     }))
 
     return NextResponse.json(transformedEvents)
   } catch (error: any) {
-    console.error('Calendar events error:', error)
+    console.error('❌ Calendar events error:', error)
     return NextResponse.json<ErrorResponse>(
       {
         error: 'Failed to fetch events',

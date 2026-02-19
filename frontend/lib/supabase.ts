@@ -1,8 +1,11 @@
 /**
- * Supabase Client Configuration
+ * Supabase Client Configuration - Hybrid Model
  * 
- * Server-side Supabase client with service role key.
- * IMPORTANT: Only use in API routes (server-side), never expose to client.
+ * Uses two different clients:
+ * - Anon Key: For user data queries (respects RLS)
+ * - Service Role: For admin operations (OAuth tokens, sync)
+ * 
+ * This provides defense-in-depth security.
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -10,10 +13,15 @@ import type { Database } from '@/types/supabase';
 
 // Validate environment variables
 const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl) {
   throw new Error('Missing SUPABASE_URL environment variable');
+}
+
+if (!supabaseAnonKey) {
+  throw new Error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable');
 }
 
 if (!supabaseServiceKey) {
@@ -21,17 +29,37 @@ if (!supabaseServiceKey) {
 }
 
 /**
- * Server-side Supabase client with service role privileges.
- * Bypasses Row Level Security - use with caution.
- * 
- * @returns Authenticated Supabase client
+ * DEFAULT CLIENT - Anon Key (RLS-protected)
+ * Use for: User data queries (calendar events, meetings, analytics)
+ * ✅ Respects Row Level Security policies
+ * ✅ Safe to use - RLS prevents unauthorized access
  */
 export const supabase = createClient<Database>(
+  supabaseUrl,
+  supabaseAnonKey,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+    db: {
+      schema: 'public',
+    },
+  }
+);
+
+/**
+ * ADMIN CLIENT - Service Role Key
+ * Use for: OAuth tokens, calendar sync, admin operations
+ * ⚠️ Bypasses RLS - use only when necessary
+ * ⚠️ Never expose to frontend
+ */
+export const supabaseAdmin = createClient<Database>(
   supabaseUrl,
   supabaseServiceKey,
   {
     auth: {
-      persistSession: false, // Server-side, no session persistence
+      persistSession: false,
       autoRefreshToken: false,
     },
     db: {

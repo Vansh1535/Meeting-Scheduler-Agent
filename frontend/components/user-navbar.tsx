@@ -12,8 +12,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { RefreshCw, Calendar, LogOut, Settings, User, CheckCircle, XCircle } from 'lucide-react'
-import { useSyncGoogleCalendar } from '@/hooks/use-api'
-import { useState, useEffect } from 'react'
+import { useSyncGoogleCalendar } from '@/hooks/use-calendar'
+import { useState, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 
 export function UserNavbar() {
@@ -21,12 +21,13 @@ export function UserNavbar() {
   const syncMutation = useSyncGoogleCalendar()
   const [oauthConnected, setOauthConnected] = useState(false)
   const [checkingOauth, setCheckingOauth] = useState(true)
+  const hasCheckedRef = useRef(false) // Prevent re-checking on every render
 
-  // Check OAuth status
+  // Check OAuth status (only once per user)
   useEffect(() => {
+    if (!user?.id || hasCheckedRef.current) return
+
     const checkOAuthStatus = async () => {
-      if (!user?.id) return
-      
       try {
         const response = await fetch(`/api/auth/google/status/${user.id}`)
         const data = await response.json()
@@ -36,6 +37,7 @@ export function UserNavbar() {
         setOauthConnected(false)
       } finally {
         setCheckingOauth(false)
+        hasCheckedRef.current = true // Mark as checked
       }
     }
 
@@ -54,6 +56,8 @@ export function UserNavbar() {
 
   const handleConnectCalendar = () => {
     if (user?.id) {
+      // Reset check flag so status gets re-checked after OAuth flow completes
+      hasCheckedRef.current = false
       window.location.href = `/api/auth/google/initiate?userId=${user.id}`
     }
   }

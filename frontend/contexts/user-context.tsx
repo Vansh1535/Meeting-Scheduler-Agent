@@ -11,6 +11,8 @@ export interface User {
   profilePictureUrl?: string
   isActive: boolean
   calendarSyncEnabled: boolean
+  schedulingStyle: 'quick' | 'detailed'
+  timezone?: string
 }
 
 interface UserContextType {

@@ -11,4 +11,5 @@ import { ScheduleRequest } from './scheduling';
 export interface ScheduleRequestWithEmails extends Omit<ScheduleRequest, 'participants'> {
   participant_emails?: string[]; // New: lookup compressed calendars by email
   participants?: ScheduleRequest['participants']; // Legacy: use provided data
+  userId?: string; // User ID for data isolation
 }

@@ -1,12 +1,14 @@
 # Integration Test Script
-# Tests the connection between Frontend → Orchestrator → Python Service
+# Tests the connection between Frontend -> Orchestrator -> Python Service
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Integration Test Suite" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-$projectRoot = "C:\Users\lilan\Desktop\ScaleDown_Proj"
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot ".."))
+$requestPath = Join-Path $PSScriptRoot "test_integration_request.json"
+$orchestratorAvailable = $false
 $allPassed = $true
 
 # Test 1: Python AI Service Health
@@ -32,17 +34,17 @@ Write-Host ""
 # Test 2: Next.js Orchestrator
 Write-Host "[2/4] Testing Next.js Orchestrator (port 3001)..." -ForegroundColor Yellow
 try {
-    # A GET will return 405, but that confirms the endpoint exists
-    $null = Invoke-WebRequest -Uri "http://localhost:3001/api/schedule" -Method Get -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
-    Write-Host "  FAIL Unexpected success on GET" -ForegroundColor Red
-    $allPassed = $false
+    # Any HTTP response means the endpoint exists
+    $response = Invoke-WebRequest -Uri "http://localhost:3001/api/schedule" -Method Get -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
+    Write-Host "  PASS Orchestrator is running (HTTP $($response.StatusCode))" -ForegroundColor Green
+    $orchestratorAvailable = $true
 } catch {
-    if ($_.Exception.Response.StatusCode -eq 405) {
+    if ($_.Exception.Response -and $_.Exception.Response.StatusCode -eq 405) {
         Write-Host "  PASS Orchestrator is running (405 Method Not Allowed is expected)" -ForegroundColor Green
+        $orchestratorAvailable = $true
     } elseif ($_.Exception.Message -like "*Unable to connect*") {
-        Write-Host "  FAIL Orchestrator not responding" -ForegroundColor Red
-        Write-Host "  Make sure to run: cd nextjs-orchestrator && npm run dev -- -p 3001" -ForegroundColor Yellow
-        $allPassed = $false
+        Write-Host "  SKIP Orchestrator not running (merged setup detected)" -ForegroundColor Yellow
+        $orchestratorAvailable = $false
     } else {
         Write-Host "  FAIL Unexpected error: $($_.Exception.Message)" -ForegroundColor Red
         $allPassed = $false
@@ -51,33 +53,37 @@ try {
 
 Write-Host ""
 
-# Test 3: Full Pipeline (Orchestrator → Python)
-Write-Host "[3/4] Testing Full Pipeline (Orchestrator → Python)..." -ForegroundColor Yellow
-try {
-    $requestBody = Get-Content "$projectRoot\test_integration_request.json" -Raw
-    $response = Invoke-RestMethod -Uri "http://localhost:3001/api/schedule" `
-        -Method Post `
-        -ContentType "application/json" `
-        -Body $requestBody `
-        -TimeoutSec 30
-    
-    if ($response.meeting_id -and $response.candidates) {
-        Write-Host "  PASS Full pipeline working" -ForegroundColor Green
-        Write-Host "  Meeting ID: $($response.meeting_id)" -ForegroundColor Gray
-        Write-Host "  Candidates: $($response.candidates.Count)" -ForegroundColor Gray
-        if ($response.candidates.Count -gt 0) {
-            $topCandidate = $response.candidates[0]
-            Write-Host "  Top Score: $($topCandidate.score)/100" -ForegroundColor Gray
-            Write-Host "  Time: $($topCandidate.slot.start)" -ForegroundColor Gray
+# Test 3: Full Pipeline (Orchestrator -> Python)
+Write-Host "[3/4] Testing Full Pipeline (Orchestrator -> Python)..." -ForegroundColor Yellow
+if (-not $orchestratorAvailable) {
+    Write-Host "  SKIP Orchestrator pipeline test (use test_integration_merged.ps1)" -ForegroundColor Yellow
+} else {
+    try {
+        $requestBody = Get-Content $requestPath -Raw
+        $response = Invoke-RestMethod -Uri "http://localhost:3001/api/schedule" `
+            -Method Post `
+            -ContentType "application/json" `
+            -Body $requestBody `
+            -TimeoutSec 30
+        
+        if ($response.meeting_id -and $response.candidates) {
+            Write-Host "  PASS Full pipeline working" -ForegroundColor Green
+            Write-Host "  Meeting ID: $($response.meeting_id)" -ForegroundColor Gray
+            Write-Host "  Candidates: $($response.candidates.Count)" -ForegroundColor Gray
+            if ($response.candidates.Count -gt 0) {
+                $topCandidate = $response.candidates[0]
+                Write-Host "  Top Score: $($topCandidate.score)/100" -ForegroundColor Gray
+                Write-Host "  Time: $($topCandidate.slot.start)" -ForegroundColor Gray
+            }
+        } else {
+            Write-Host "  FAIL Invalid response format" -ForegroundColor Red
+            $allPassed = $false
         }
-    } else {
-        Write-Host "  FAIL Invalid response format" -ForegroundColor Red
+    } catch {
+        Write-Host "  FAIL Pipeline test failed" -ForegroundColor Red
+        Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Red
         $allPassed = $false
     }
-} catch {
-    Write-Host "  FAIL Pipeline test failed" -ForegroundColor Red
-    Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Red
-    $allPassed = $false
 }
 
 Write-Host ""

@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
     const scheduleRequest = {
       meeting_id: `quick-${Date.now()}`,
       participant_emails: [user.email, user.email],
+      userId: body.userId,
       constraints: {
         duration_minutes: body.duration || 30,
         earliest_date: earliestDate.toISOString(),

@@ -1,15 +1,20 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, Suspense, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { saveAuthSession } from '@/lib/auth-session'
 import { toast } from 'sonner'
 
-export default function Page() {
+function PageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const hasRedirected = useRef(false)
 
   useEffect(() => {
+    // Prevent multiple redirects
+    if (hasRedirected.current) return
+    hasRedirected.current = true
+
     // Handle OAuth callback
     const authStatus = searchParams.get('auth')
     const userId = searchParams.get('user_id')
@@ -40,25 +45,25 @@ export default function Page() {
             toast.success('Welcome! You\'re now logged in.')
             
             // Redirect to dashboard
-            router.push('/dashboard')
+            router.replace('/dashboard')
           } else {
             toast.error('Failed to load user data')
-            router.push('/landing')
+            router.replace('/landing')
           }
         } catch (err) {
           console.error('Failed to fetch user:', err)
           toast.error('Authentication failed')
-          router.push('/landing')
+          router.replace('/landing')
         }
       }
 
       fetchUserAndRedirect()
     } else if (error) {
       toast.error(`Authentication failed: ${searchParams.get('message') || error}`)
-      router.push('/landing')
+      router.replace('/landing')
     } else {
       // No auth params, just redirect to landing
-      router.push('/landing')
+      router.replace('/landing')
     }
   }, [searchParams, router])
 
@@ -68,5 +73,13 @@ export default function Page() {
         <p className="text-muted-foreground">Loading...</p>
       </div>
     </div>
+  )
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <PageContent />
+    </Suspense>
   )
 }

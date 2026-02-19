@@ -250,7 +250,7 @@ export async function POST(request: NextRequest) {
     
     // Persist to database (non-blocking - don't fail request on DB errors)
     if (isDatabaseEnabled()) {
-      persistSchedulingSession(enrichedRequest, enforcedResponse)
+      persistSchedulingSession(enrichedRequest, enforcedResponse, body.userId)
         .then(() => {
           console.log(`✅ Successfully persisted scheduling session: ${enrichedRequest.meeting_id}`);
         })

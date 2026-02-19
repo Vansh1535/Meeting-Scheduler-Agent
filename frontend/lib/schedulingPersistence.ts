@@ -32,15 +32,17 @@ export interface PersistSchedulingResult {
  * 
  * @param request - Original scheduling request
  * @param response - AI response from Python service
+ * @param userId - User ID for data isolation (optional)
  * @returns Result with database IDs
  */
 export async function persistSchedulingSession(
   request: ScheduleRequest,
-  response: ScheduleResponse
+  response: ScheduleResponse,
+  userId?: string
 ): Promise<PersistSchedulingResult> {
   try {
     // 1. Insert meeting record
-    const meetingResult = await insertMeeting(request, response);
+    const meetingResult = await insertMeeting(request, response, userId);
     if (!meetingResult.success || !meetingResult.id) {
       return {
         success: false,
@@ -104,7 +106,8 @@ export async function persistSchedulingSession(
  */
 async function insertMeeting(
   request: ScheduleRequest,
-  response: ScheduleResponse
+  response: ScheduleResponse,
+  userId?: string
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   const requiredCount = request.participants.filter(p => p.is_required).length;
   const optionalCount = request.participants.length - requiredCount;
@@ -113,6 +116,7 @@ async function insertMeeting(
     .from('meetings')
     .insert({
       meeting_id: request.meeting_id,
+      user_id: userId,
       participant_count: request.participants.length,
       required_participant_count: requiredCount,
       optional_participant_count: optionalCount,
