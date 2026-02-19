@@ -38,11 +38,17 @@ export async function GET(request: NextRequest) {
         status,
         selected_candidate_id,
         google_event_id,
+        google_event_link,
         meeting_candidates(
           slot_start,
           slot_end,
           final_score,
           rank
+        ),
+        participant_availability(
+          email,
+          name,
+          is_required
         )
       `)
       .eq('user_id', userId)

@@ -81,9 +81,13 @@ export async function createCalendarEvent(
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
     // Step 3: Prepare event data
+    // Add AI Platform identifier to description
+    const aiPlatformLabel = '\n\n---\n🤖 This event was created by the AI Meeting Scheduler\n---';
+    const fullDescription = description ? `${description}${aiPlatformLabel}` : aiPlatformLabel.trim();
+    
     const eventData: calendar_v3.Schema$Event = {
       summary,
-      description,
+      description: fullDescription,
       start: {
         dateTime: start_time,
         timeZone: timezone,
@@ -111,6 +115,13 @@ export async function createCalendarEvent(
       },
       guestsCanModify: false,
       guestsCanInviteOthers: false,
+      extendedProperties: {
+        private: {
+          'source_platform': 'ai_platform',
+          'ai_meeting_id': meeting_id,
+          'created_by': 'ScaleDown AI Meeting Scheduler',
+        },
+      },
     };
 
     console.log(`📅 Creating Google Calendar event for meeting ${meeting_id}...`);

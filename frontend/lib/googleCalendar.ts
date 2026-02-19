@@ -159,6 +159,17 @@ export async function storeCalendarEvents(
   // Get list of current google_event_ids
   const currentEventIds = events.map(e => e.google_event_id);
 
+  // Fetch all AI Platform events for this user (for existing events without extended properties)
+  const { data: aiMeetings } = await supabase
+    .from('meetings')
+    .select('google_event_id')
+    .eq('user_id', userId)
+    .not('google_event_id', 'is', null);
+  
+  // Create a Set for O(1) lookup
+  const aiEventIds = new Set((aiMeetings || []).map(m => m.google_event_id));
+  console.log(`📊 Found ${aiEventIds.size} existing AI Platform events for user ${userId}`);
+
   // Process in batches to avoid overwhelming the database
   const batchSize = 100;
   for (let i = 0; i < events.length; i += batchSize) {
@@ -174,6 +185,13 @@ export async function storeCalendarEvents(
 
       if (existing) {
         // Update existing event
+        // Check if this event is from AI Platform using multiple detection methods:
+        // 1. Extended properties (for new events)
+        // 2. Meetings table lookup (for existing events without extended properties)
+        const hasExtendedProperty = event.raw_event?.extendedProperties?.private?.source_platform === 'ai_platform';
+        const isInMeetingsTable = aiEventIds.has(event.google_event_id);
+        const sourcePlatform = (hasExtendedProperty || isInMeetingsTable) ? 'ai_platform' : 'google';
+        
         const { error } = await supabase
           .from('calendar_events')
           .update({
@@ -193,6 +211,7 @@ export async function storeCalendarEvents(
             is_recurring: event.is_recurring,
             recurring_event_id: event.recurring_event_id,
             raw_event: event.raw_event,
+            source_platform: sourcePlatform,
             synced_at: new Date().toISOString(),
           })
           .eq('id', existing.id);
@@ -200,6 +219,13 @@ export async function storeCalendarEvents(
         if (!error) updated++;
       } else {
         // Insert new event
+        // Check if this event is from AI Platform using multiple detection methods:
+        // 1. Extended properties (for new events)
+        // 2. Meetings table lookup (for existing events without extended properties)
+        const hasExtendedProperty = event.raw_event?.extendedProperties?.private?.source_platform === 'ai_platform';
+        const isInMeetingsTable = aiEventIds.has(event.google_event_id);
+        const sourcePlatform = (hasExtendedProperty || isInMeetingsTable) ? 'ai_platform' : 'google';
+        
         const { error } = await supabase
           .from('calendar_events')
           .insert({
@@ -221,6 +247,7 @@ export async function storeCalendarEvents(
             is_recurring: event.is_recurring,
             recurring_event_id: event.recurring_event_id,
             raw_event: event.raw_event,
+            source_platform: sourcePlatform,
             synced_at: new Date().toISOString(),
           });
 

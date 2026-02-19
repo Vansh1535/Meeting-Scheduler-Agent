@@ -213,8 +213,25 @@ export function MonthView({ highlightEvent, onMonthChange }: MonthViewProps) {
                 const eventCount = dayEvents.length
                 const isHighlighted = highlightedDay === day
                 
+                // Check for AI Platform vs Google Calendar events
+                const aiEventCount = dayEvents.filter(e => e.source === 'ai').length
+                const googleEventCount = dayEvents.filter(e => e.source === 'google').length
+                const hasAiEvents = aiEventCount > 0
+                const hasGoogleEvents = googleEventCount > 0
+                const hasBothTypes = hasAiEvents && hasGoogleEvents
+                
                 // Get category-specific glow colors
                 const glowColors = categoryGlowColors[highlightCategory as keyof typeof categoryGlowColors] || categoryGlowColors.meeting
+                
+                // Determine gradient based on event source
+                let eventGradient = 'from-yellow-500 to-orange-500'
+                if (hasBothTypes) {
+                  eventGradient = 'from-red-500 via-purple-500 to-orange-500' // Mixed: AI (red) + Google (orange)
+                } else if (hasAiEvents) {
+                  eventGradient = 'from-slate-800 to-red-600' // AI Platform: red
+                } else if (hasGoogleEvents) {
+                  eventGradient = 'from-yellow-500 to-orange-500' // Google Calendar: yellow-orange
+                }
                 
                 const handleDayClick = () => {
                   if (hasEvents) {
@@ -232,7 +249,7 @@ export function MonthView({ highlightEvent, onMonthChange }: MonthViewProps) {
                       isHighlighted
                         ? `bg-gradient-to-br ${glowColors.from} ${glowColors.to} text-white border-transparent shadow-2xl ${glowColors.shadow} scale-110 animate-pulse`
                         : hasEvents
-                        ? 'bg-gradient-to-br from-blue-500 to-purple-500 text-white border-transparent shadow-elevation-2 hover:shadow-elevation-3 hover:scale-105'
+                        ? `bg-gradient-to-br ${eventGradient} text-white border-transparent shadow-elevation-2 hover:shadow-elevation-3 hover:scale-105`
                         : 'bg-muted/70 text-foreground border-border/70 hover:bg-muted'
                     }`}
                     title={hasEvents ? `${eventCount} event${eventCount > 1 ? 's' : ''} - Click to view` : ''}
@@ -252,11 +269,21 @@ export function MonthView({ highlightEvent, onMonthChange }: MonthViewProps) {
 
             {/* Legend */}
             <div className="mt-6 pt-4 border-t border-border">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  <span className="inline-block w-3 h-3 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 mr-2" />
-                  Days with events
-                </p>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center">
+                    <span className="inline-block w-3 h-3 rounded-full bg-gradient-to-br from-yellow-500 to-orange-500 mr-2" />
+                    <span className="text-xs text-muted-foreground">Google Cal</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="inline-block w-3 h-3 rounded-full bg-gradient-to-br from-slate-800 to-red-600 mr-2" />
+                    <span className="text-xs text-muted-foreground">AI Platform</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="inline-block w-3 h-3 rounded-full bg-gradient-to-br from-red-500 via-purple-500 to-orange-500 mr-2" />
+                    <span className="text-xs text-muted-foreground">Both</span>
+                  </div>
+                </div>
                 {events && events.length > 0 && (
                   <p className="text-sm font-semibold text-primary">
                     {events.length} event{events.length !== 1 ? 's' : ''} this month

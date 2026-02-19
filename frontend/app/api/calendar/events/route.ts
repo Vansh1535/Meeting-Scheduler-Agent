@@ -59,20 +59,38 @@ export async function GET(request: NextRequest) {
     // Silent polling
 
     // Transform to frontend format
-    const transformedEvents = (events || []).map((event: any) => ({
-      id: event.id,
-      title: event.title,
-      summary: event.title,
-      description: event.description,
-      category: event.status || 'Meeting',
-      startTime: event.start_time,
-      endTime: event.end_time,
-      location: event.location,
-      timezone: event.timezone,
-      attendeeCount: event.attendee_count,
-      isOrganizer: event.is_organizer,
-      source: 'google', // All events from this endpoint are from Google Calendar
-    }))
+    const transformedEvents = (events || []).map((event: any) => {
+      // Use source_platform from database if available, fallback to checking meetings table
+      const source = event.source_platform || 'google'
+      
+      // Extract attendees from raw_event if available
+      const attendees = event.raw_event?.attendees || []
+      const attendeeList = attendees.map((attendee: any) => ({
+        email: attendee.email,
+        name: attendee.displayName || attendee.email?.split('@')[0] || 'Unknown',
+        is_required: !attendee.optional,
+        responseStatus: attendee.responseStatus,
+        organizer: attendee.organizer || false,
+      }))
+
+      return {
+        id: event.id,
+        title: event.title,
+        summary: event.title,
+        description: event.description,
+        category: event.status || 'Meeting',
+        startTime: event.start_time,
+        endTime: event.end_time,
+        location: event.location,
+        timezone: event.timezone,
+        attendeeCount: event.attendee_count,
+        isOrganizer: event.is_organizer,
+        source: source === 'ai_platform' ? 'ai' : 'google', // Use database source_platform field
+        google_event_id: event.google_event_id, // Keep google_event_id for linking
+        attendees: attendeeList,
+        google_event_link: event.raw_event?.hangoutLink || event.raw_event?.conferenceData?.entryPoints?.find((ep: any) => ep.entryPointType === 'video')?.uri,
+      }
+    })
 
     return NextResponse.json(transformedEvents)
   } catch (error: any) {
