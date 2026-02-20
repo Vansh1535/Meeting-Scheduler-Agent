@@ -87,8 +87,9 @@ class OptimizationAgent:
         all_available = len(conflicts) == 0
         
         # 2. Calculate preference scores
+        event_category = getattr(constraints, 'event_category', None)
         participant_preference_scores = PreferenceAgent.score_slot_preferences(
-            slot, participants
+            slot, participants, event_category
         )
         preference_score = PreferenceAgent.aggregate_preference_scores(
             participant_preference_scores, participants
@@ -108,6 +109,11 @@ class OptimizationAgent:
         )
         fragmentation_factor = fragmentation_data["factor"]
         
+        # 4b. Calculate same-day gap utilization bonus
+        same_day_gap_bonus = OptimizationAgent._calculate_same_day_gap_bonus(
+            slot, participants, constraints
+        )
+        
         # 5. Calculate additional optimization factors
         optimization_factors = OptimizationAgent._calculate_optimization_factors(
             slot, participants, constraints
@@ -117,13 +123,21 @@ class OptimizationAgent:
         # 6. Combine scores with realistic AI weights
         # Availability: 35%, Preference: 25%, Conflict Proximity: 20%,
         # Fragmentation: 15%, Optimization: 5%
-        overall_score = (
+        base_score = (
             availability_factor * 0.35 +
             preference_factor * 0.25 +
             conflict_proximity_factor * 0.20 +
             fragmentation_factor * 0.15 +
             optimization_factor * 0.05
         ) * 100.0
+        
+        # 6b. Add time-slot differentiation for tie-breaking (max ±0.5 points)
+        time_differentiation = OptimizationAgent._calculate_time_slot_differentiation(
+            slot, constraints
+        )
+        
+        # 6c. Add same-day gap bonus (up to +5 points for office hour gaps)
+        overall_score = base_score + time_differentiation + same_day_gap_bonus
         
         # 7. Build detailed breakdown
         breakdown = {
@@ -132,6 +146,8 @@ class OptimizationAgent:
             "conflict_proximity": round(conflict_proximity_factor * 100, 2),
             "fragmentation": round(fragmentation_factor * 100, 2),
             "optimization": round(optimization_factor * 100, 2),
+            "same_day_gap_bonus": round(same_day_gap_bonus, 2),
+            "time_differentiation": round(time_differentiation, 2),
             "weights": {
                 "availability": 35,
                 "preference": 25,
@@ -154,6 +170,7 @@ class OptimizationAgent:
             len(conflicts),
             conflict_proximity_factor * 100,
             fragmentation_factor * 100,
+            same_day_gap_bonus,
         )
         
         return MeetingSlotCandidate(
@@ -385,6 +402,101 @@ class OptimizationAgent:
         }
     
     @staticmethod
+    def _calculate_same_day_gap_bonus(
+        slot: TimeSlot,
+        participants: List[Participant],
+        constraints: SchedulingConstraints,
+    ) -> float:
+        """
+        Calculate bonus for filling gaps during office hours on days with existing meetings.
+        
+        This addresses the issue where AI suggests after-hours slots even when there are
+        available gaps during office hours on the same day.
+        
+        Key logic:
+        - If there are meetings on the same day AND this slot is during office hours → BONUS
+        - Prioritizes filling work-day gaps over extending the day
+        - Especially valuable for MEETING category events (work-related)
+        
+        Args:
+            slot: Time slot to evaluate
+            participants: List of participants
+            constraints: Scheduling constraints
+            
+        Returns:
+            Bonus points (0 to +8.0)
+        """
+        max_bonus = 0.0
+        event_category = getattr(constraints, 'event_category', None)
+        
+        # Check if slot is during office hours
+        slot_hour = slot.start.hour
+        office_start = constraints.working_hours_start
+        office_end = constraints.working_hours_end
+        is_office_hours = office_start <= slot_hour < office_end
+        
+        # DEBUG logging
+        print(f"🔍 Gap Bonus Debug: Slot {slot.start.strftime('%I:%M %p')} | Office hrs: {office_start}-{office_end} | Is office: {is_office_hours}")
+        
+        if not is_office_hours:
+            # Not during office hours - no bonus (or even penalty for extending day)
+            print(f"   ❌ Not office hours - no bonus")
+            return 0.0
+        
+        # Check each participant for same-day meetings
+        for participant in participants:
+            same_day_meetings = []
+            
+            for busy_slot in participant.calendar_summary.busy_slots:
+                if busy_slot.start.date() == slot.start.date():
+                    same_day_meetings.append(busy_slot)
+            
+            print(f"   📅 Same-day meetings: {len(same_day_meetings)}")
+            if len(same_day_meetings) > 0:
+                for mtg in same_day_meetings:
+                    print(f"      • {mtg.start.strftime('%I:%M %p')} - {mtg.end.strftime('%I:%M %p')}")
+            
+            if len(same_day_meetings) > 0:
+                # There are meetings on this day - calculate gap filling bonus
+                
+                # Base bonus for filling a gap during office hours (increased from 3.0 to 5.0)
+                base_bonus = 5.0
+                
+                # Check if this fills a gap between meetings (better than start/end of day)
+                fills_middle_gap = False
+                for meeting in same_day_meetings:
+                    # Check if our slot is between existing meetings
+                    if meeting.end < slot.start:
+                        # There's a meeting before this slot
+                        for other_meeting in same_day_meetings:
+                            if other_meeting.start > slot.end:
+                                # There's also a meeting after - we're filling a middle gap!
+                                fills_middle_gap = True
+                                break
+                
+                if fills_middle_gap:
+                    # Extra bonus for filling middle gaps (best scenario) - increased from 5.0 to 8.0
+                    bonus = base_bonus + 3.0  # Total: 8.0
+                else:
+                    # Just filling office hours on a busy day (good, but not ideal)
+                    bonus = base_bonus  # Total: 5.0
+                
+                # Additional bonus for MEETING category (work-related)
+                if event_category:
+                    from schemas.scheduling import EventCategory
+                    if event_category == EventCategory.MEETING:
+                        bonus += 1.0  # Work meetings should definitely be during work hours
+                
+                # Take the maximum bonus across all participants
+                max_bonus = max(max_bonus, bonus)
+        
+        # Cap at 8.0 points maximum (increased from 5.0)
+        final_bonus = min(8.0, max_bonus)
+        if final_bonus > 0:
+            print(f"   ✨ BONUS AWARDED: +{final_bonus:.1f} points")
+        return final_bonus
+    
+    @staticmethod
     def _calculate_optimization_factors(
         slot: TimeSlot,
         participants: List[Participant],
@@ -512,6 +624,7 @@ class OptimizationAgent:
             return 40.0
     
     @staticmethod
+    @staticmethod
     def _generate_reasoning(
         slot: TimeSlot,
         availability_score: float,
@@ -521,6 +634,7 @@ class OptimizationAgent:
         conflict_count: int,
         conflict_proximity_score: float,
         fragmentation_score: float,
+        same_day_gap_bonus: float = 0.0,
     ) -> str:
         """Generate human-readable reasoning for the score with AI-style explanations."""
         parts = []
@@ -536,6 +650,12 @@ class OptimizationAgent:
             parts.append("Acceptable match")
         else:
             parts.append("Suboptimal match")
+        
+        # Same-day gap bonus context (priority message)
+        if same_day_gap_bonus >= 4.0:
+            parts.append("fills gap between meetings during office hours")
+        elif same_day_gap_bonus >= 2.0:
+            parts.append("utilizes available office hours on a busy day")
         
         # Availability context
         if all_available:
@@ -582,6 +702,110 @@ class OptimizationAgent:
             parts.append("good time of day")
         
         return "; ".join(parts) + "."
+    
+    @staticmethod
+    def _calculate_time_slot_differentiation(
+        slot: TimeSlot,
+        constraints: SchedulingConstraints,
+    ) -> float:
+        """
+        Calculate differentiation score to ensure unique scores for each slot.
+        
+        This adds variations (±3.0 points max) to differentiate slots
+        with otherwise similar scores, based on:
+        - Exact time of day preferences
+        - Minute positioning (prefer round hours)
+        - Distance from ideal meeting times
+        - Within-hour granularity
+        
+        Args:
+            slot: Time slot to evaluate
+            constraints: Scheduling constraints
+            
+        Returns:
+            Score adjustment from -3.0 to +3.0
+        """
+        score_adjustment = 0.0
+        
+        # 1. Minute preference (±0.8 points)
+        # Much stronger preference for round hours
+        minute = slot.start.minute
+        if minute == 0:
+            score_adjustment += 0.8  # Top of the hour
+        elif minute == 30:
+            score_adjustment += 0.5  # Half hour
+        elif minute == 15 or minute == 45:
+            score_adjustment += 0.2  # Quarter hours
+        else:
+            # Penalty for odd minutes (creates differentiation)
+            score_adjustment -= (minute % 15) * 0.05
+        
+        # 2. Hour positioning within day (±1.2 points)
+        # Strong preference for ideal meeting times
+        hour = slot.start.hour
+        event_category = getattr(constraints, 'event_category', None)
+        
+        if event_category:
+            from schemas.scheduling import EventCategory
+            
+            if event_category == EventCategory.MEETING:
+                # Strong preference hierarchy for business meetings
+                if hour == 10:  # Sweet spot
+                    score_adjustment += 1.2
+                elif hour == 14:  # Early afternoon
+                    score_adjustment += 1.1
+                elif hour == 9 or hour == 15:  # Good times
+                    score_adjustment += 0.9
+                elif hour == 11 or hour == 13:  # Okay times
+                    score_adjustment += 0.6
+                elif hour == 8 or hour == 16:  # Edge of day
+                    score_adjustment += 0.3
+                elif hour >= 17:  # After hours penalty
+                    score_adjustment -= (hour - 16) * 0.3
+            elif event_category == EventCategory.SOCIAL:
+                # Prefer evening but not too late
+                if hour == 18:  # 6PM - ideal
+                    score_adjustment += 1.2
+                elif hour == 19:  # 7PM - still good
+                    score_adjustment += 0.9
+                elif hour == 17:  # 5PM - early
+                    score_adjustment += 0.6
+                elif hour >= 20:  # Too late
+                    score_adjustment -= (hour - 19) * 0.4
+            elif event_category == EventCategory.FOCUS_TIME:
+                # Prefer early morning
+                if hour == 7 or hour == 8:
+                    score_adjustment += 1.2
+                elif hour == 9 or hour == 10:
+                    score_adjustment += 0.8
+                elif hour == 6:
+                    score_adjustment += 0.6
+        
+        # 3. Day of week preference (±0.4 points)
+        # Stronger mid-week preference
+        weekday = slot.start.weekday()  # 0=Monday, 4=Friday
+        if weekday == 2:  # Wednesday - best
+            score_adjustment += 0.4
+        elif weekday in [1, 3]:  # Tue, Thu - good
+            score_adjustment += 0.3
+        elif weekday == 0:  # Monday - okay
+            score_adjustment += 0.15
+        elif weekday == 4:  # Friday - least preferred
+            score_adjustment += 0.05
+        
+        # 4. Within-hour granularity (±0.6 points)
+        # Add subtle variation based on exact timestamp to ensure uniqueness
+        # This creates a smooth gradient throughout the day
+        minutes_since_midnight = hour * 60 + minute
+        # Scale to 0-1 range for the working day (9am-5pm = 540-1020 minutes)
+        if 540 <= minutes_since_midnight <= 1020:
+            # Prefer middle of day slightly
+            normalized = (minutes_since_midnight - 540) / 480
+            time_curve = 1.0 - abs(0.5 - normalized)  # Peak at midday
+            score_adjustment += time_curve * 0.6
+        
+        # Clamp total adjustment to ±3.0 for strong differentiation
+        return max(-3.0, min(3.0, score_adjustment))
     
     @staticmethod
     def calculate_time_savings_analytics(

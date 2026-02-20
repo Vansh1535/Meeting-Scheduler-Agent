@@ -29,6 +29,17 @@ class DayOfWeek(str, Enum):
     SUNDAY = "sunday"
 
 
+class EventCategory(str, Enum):
+    """Event categories for intelligent time suggestion."""
+    MEETING = "meeting"          # Business meetings - prefer office hours
+    PERSONAL = "personal"         # Personal events - flexible timing
+    WORK = "work"                 # Work tasks - office hours or extended
+    SOCIAL = "social"             # Social events - prefer evenings/weekends
+    HEALTH = "health"             # Health appointments - daytime preferred
+    FOCUS_TIME = "focus_time"     # Deep work - prefer morning or dedicated blocks
+    BREAK = "break"               # Breaks/lunch - midday preferred
+
+
 class TimeSlot(BaseModel):
     """Represents a time slot with start and end times."""
     start: datetime = Field(..., description="Start time in ISO 8601 format")
@@ -184,6 +195,14 @@ class SchedulingConstraints(BaseModel):
         ge=1,
         le=50,
         description="Maximum number of candidate slots to return"
+    )
+    holiday_dates: List[str] = Field(
+        default_factory=list,
+        description="Dates to exclude from scheduling (YYYY-MM-DD format)"
+    )
+    event_category: EventCategory = Field(
+        default=EventCategory.MEETING,
+        description="Event category for intelligent time suggestion"
     )
     
     @field_validator('earliest_date', 'latest_date', mode='after')

@@ -1,12 +1,13 @@
 """Availability Agent: Computes free/busy slots with buffer and timezone handling."""
 
-from typing import List, Set
+from typing import List, Set, Tuple
 from datetime import datetime, timedelta, timezone
 from schemas.scheduling import (
     Participant,
     TimeSlot,
     SchedulingConstraints,
     DayOfWeek,
+    EventCategory,
 )
 
 
@@ -54,7 +55,12 @@ class AvailabilityAgent:
         constraints: SchedulingConstraints,
     ) -> List[TimeSlot]:
         """
-        Generate all possible time slots within the date range and working hours.
+        Generate intelligent time slots based on event category, weekday/weekend.
+        
+        This method generates slots:
+        1. During office hours gaps (not just after hours)
+        2. With different time windows for weekdays vs weekends
+        3. Based on event category preferences
         
         Args:
             constraints: Scheduling constraints
@@ -89,6 +95,12 @@ class AvailabilityAgent:
         if latest_date.tzinfo is None:
             latest_date = latest_date.replace(tzinfo=timezone.utc)
         
+        # Build set of holiday date strings for fast lookup
+        holiday_date_set = set(getattr(constraints, 'holiday_dates', []))
+        
+        # Get event category
+        event_category = getattr(constraints, 'event_category', EventCategory.MEETING)
+        
         # Generate slots day by day
         while current_date <= latest_date:
             # Check if this day is allowed
@@ -96,43 +108,148 @@ class AvailabilityAgent:
                 current_date += timedelta(days=1)
                 continue
             
-            # Generate slots for this day within working hours
-            day_start = current_date.replace(
-                hour=constraints.working_hours_start,
-                minute=0,
-                second=0,
-                microsecond=0,
-            )
-            day_end = current_date.replace(
-                hour=constraints.working_hours_end,
-                minute=0,
-                second=0,
-                microsecond=0,
+            # Skip holidays
+            if current_date.strftime('%Y-%m-%d') in holiday_date_set:
+                current_date += timedelta(days=1)
+                continue
+            
+            # Determine if weekend
+            is_weekend = current_date.weekday() in [5, 6]  # Saturday, Sunday
+            
+            # Get time windows based on category and day type
+            time_windows = AvailabilityAgent._get_time_windows_for_category(
+                event_category, is_weekend, constraints
             )
             
-            # Generate slots in 30-minute increments
-            slot_start = day_start
-            while slot_start + duration <= day_end:
-                slot_end = slot_start + duration
-                
-                # Ensure timezone aware
-                if slot_start.tzinfo is None:
-                    slot_start = slot_start.replace(tzinfo=timezone.utc)
-                if slot_end.tzinfo is None:
-                    slot_end = slot_end.replace(tzinfo=timezone.utc)
-                
-                slots.append(
-                    TimeSlot(
-                        start=slot_start,
-                        end=slot_end,
-                        timezone=constraints.timezone,
-                    )
+            # Generate slots for each time window
+            for window_start, window_end in time_windows:
+                day_start = current_date.replace(
+                    hour=window_start,
+                    minute=0,
+                    second=0,
+                    microsecond=0,
                 )
-                slot_start += timedelta(minutes=30)  # 30-minute increments
+                day_end = current_date.replace(
+                    hour=window_end,
+                    minute=0,
+                    second=0,
+                    microsecond=0,
+                )
+                
+                # Generate slots in 30-minute increments
+                slot_start = day_start
+                while slot_start + duration <= day_end:
+                    slot_end = slot_start + duration
+                    
+                    # Create timezone-aware copies for the slot
+                    slot_start_aware = slot_start if slot_start.tzinfo else slot_start.replace(tzinfo=timezone.utc)
+                    slot_end_aware = slot_end if slot_end.tzinfo else slot_end.replace(tzinfo=timezone.utc)
+                    
+                    slots.append(
+                        TimeSlot(
+                            start=slot_start_aware,
+                            end=slot_end_aware,
+                            timezone=constraints.timezone,
+                        )
+                    )
+                    slot_start += timedelta(minutes=30)  # 30-minute increments
             
             current_date += timedelta(days=1)
         
         return slots
+    
+    @staticmethod
+    def _get_time_windows_for_category(
+        category: EventCategory,
+        is_weekend: bool,
+        constraints: SchedulingConstraints,
+    ) -> List[Tuple[int, int]]:
+        """
+        Get appropriate time windows based on event category and day type.
+        
+        Returns list of (start_hour, end_hour) tuples representing time windows.
+        Multiple windows allow for gaps (e.g., morning and afternoon sessions).
+        
+        Args:
+            category: Event category
+            is_weekend: Whether it's a weekend
+            constraints: Scheduling constraints for working hours
+            
+        Returns:
+            List of (start_hour, end_hour) tuples (hours are 0-23)
+        """
+        office_start = constraints.working_hours_start
+        office_end = constraints.working_hours_end
+        
+        # Helper to ensure hours are within valid range
+        def clamp_hour(hour: int) -> int:
+            return max(0, min(23, hour))
+        
+        if is_weekend:
+            # Weekends - more flexible timing
+            if category == EventCategory.MEETING:
+                # Business meetings less common on weekends, but if needed: mid-day
+                return [(10, 16)]
+            elif category == EventCategory.PERSONAL:
+                # Personal events can be anytime
+                return [(8, 12), (14, 20)]
+            elif category == EventCategory.WORK:
+                # Work tasks - flexible weekend hours
+                return [(9, 13), (15, 19)]
+            elif category == EventCategory.SOCIAL:
+                # Social events - afternoon to evening
+                return [(12, 22)]
+            elif category == EventCategory.HEALTH:
+                # Health appointments - morning to early afternoon
+                return [(8, 16)]
+            elif category == EventCategory.FOCUS_TIME:
+                # Deep work - morning preferred
+                return [(8, 12), (14, 18)]
+            elif category == EventCategory.BREAK:
+                # Breaks - anytime
+                return [(10, 20)]
+            else:
+                # Default weekend hours
+                return [(9, 18)]
+        else:
+            # Weekdays - category-specific logic
+            if category == EventCategory.MEETING:
+                # Business meetings - prioritize office hours + small buffer
+                # Include early morning and late afternoon for flexibility
+                start = clamp_hour(office_start - 1)
+                end = clamp_hour(office_end + 2)
+                return [(start, end)]
+            elif category == EventCategory.PERSONAL:
+                # Personal events - before/after work + lunch
+                windows = []
+                # Early morning
+                if office_start > 7:
+                    windows.append((7, office_start))
+                # Lunch
+                windows.append((12, 14))
+                # After work
+                windows.append((office_end, 21))
+                return windows
+            elif category == EventCategory.WORK:
+                # Work tasks - extended office hours including early/late work
+                start = clamp_hour(office_start - 2)
+                end = clamp_hour(office_end + 3)
+                return [(start, end)]
+            elif category == EventCategory.SOCIAL:
+                # Social events - lunch and after work
+                return [(12, 14), (office_end, 22)]
+            elif category == EventCategory.HEALTH:
+                # Health appointments - office hours (people take time off)
+                return [(8, office_end)]
+            elif category == EventCategory.FOCUS_TIME:
+                # Deep work - early morning or late morning, avoid mid-day
+                return [(7, 11), (14, 17)]
+            elif category == EventCategory.BREAK:
+                # Breaks - mid-morning, lunch, mid-afternoon
+                return [(10, 12), (12, 14), (15, 17)]
+            else:
+                # Default to standard office hours
+                return [(office_start, office_end)]
     
     @staticmethod
     def _is_slot_available_for_all(

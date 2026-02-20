@@ -143,6 +143,73 @@ export interface Database {
         };
         Update: Partial<Database['public']['Tables']['participant_availability']['Insert']>;
       };
+      calendar_events: {
+        Row: {
+          id: string;
+          user_id: string;
+          google_event_id: string;
+          google_calendar_id: string;
+          title: string | null;
+          description: string | null;
+          location: string | null;
+          start_time: string;
+          end_time: string;
+          timezone: string;
+          is_all_day: boolean;
+          status: string | null;
+          visibility: string | null;
+          attendee_count: number;
+          is_organizer: boolean;
+          response_status: string | null;
+          is_recurring: boolean;
+          recurring_event_id: string | null;
+          source_platform: string | null;
+          raw_event: Record<string, any> | null;
+          synced_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['calendar_events']['Row'], 'id' | 'created_at' | 'updated_at'> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['calendar_events']['Insert']>;
+      };
+      user_accounts: {
+        Row: {
+          id: string;
+          email: string;
+          display_name: string | null;
+          avatar_url: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['user_accounts']['Row'], 'id' | 'created_at' | 'updated_at'> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['user_accounts']['Insert']>;
+      };
+      oauth_tokens: {
+        Row: {
+          id: string;
+          user_id: string;
+          provider: string;
+          access_token: string;
+          refresh_token: string | null;
+          expires_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['oauth_tokens']['Row'], 'id' | 'created_at' | 'updated_at'> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['oauth_tokens']['Insert']>;
+      };
     };
     Views: {
       v_top_candidates: {

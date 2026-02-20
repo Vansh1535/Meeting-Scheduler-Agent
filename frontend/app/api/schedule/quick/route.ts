@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabase'
+import { createCalendarEvent } from '@/lib/googleCalendarWrite'
 
 interface QuickScheduleRequest {
   userId: string
@@ -49,6 +50,12 @@ export async function POST(request: NextRequest) {
     const endDateTime = new Date(startDateTime.getTime() + body.duration * 60000)
     const eventId = `ai-quick-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
+    // Compulsory AI description
+    const aiSignature = '\n\n---\nThis event was created by AI Event Scheduler'
+    const finalDescription = body.description
+      ? `${body.description}${aiSignature}`
+      : `This event was created by AI Event Scheduler`
+
     const { data: newEvent, error: eventError } = await supabase
       .from('calendar_events')
       .insert({
@@ -56,7 +63,7 @@ export async function POST(request: NextRequest) {
         google_event_id: eventId,
         google_calendar_id: 'primary',
         title: body.title,
-        description: body.description || '',
+        description: finalDescription,
         location: '',
         start_time: startDateTime.toISOString(),
         end_time: endDateTime.toISOString(),
@@ -89,6 +96,29 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('✅ Quick schedule event created:', newEvent.id)
+
+    // Write to Google Calendar so the event appears and invites are sent
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    const gcalResult = await createCalendarEvent({
+      meeting_id: newEvent.id,
+      organizer_user_id: body.userId,
+      summary: body.title,
+      description: finalDescription,
+      start_time: startDateTime.toISOString(),
+      end_time: endDateTime.toISOString(),
+      timezone,
+      attendees: user.email ? [user.email] : [],
+      send_updates: 'all',
+    })
+
+    if (!gcalResult.success) {
+      console.warn('⚠️  Google Calendar write-back failed (event saved to DB):', gcalResult.error)
+    } else {
+      await supabase.from('calendar_events').update({
+        google_event_id: gcalResult.google_event_id,
+      }).eq('id', newEvent.id)
+      console.log('📅 Event written to Google Calendar:', gcalResult.html_link)
+    }
 
     return NextResponse.json({
       success: true,

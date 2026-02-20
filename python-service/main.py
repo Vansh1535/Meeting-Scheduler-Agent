@@ -78,6 +78,24 @@ async def schedule_meeting(request: ScheduleRequest) -> ScheduleResponse:
     start_time = time.time()
     
     try:
+        # DEBUG: Log incoming request details
+        print("\n" + "="*80)
+        print(f"📥 SCHEDULING REQUEST RECEIVED: {request.meeting_id}")
+        print("="*80)
+        print(f"Participants: {len(request.participants)}")
+        print(f"Duration: {request.constraints.duration_minutes} minutes")
+        print(f"Office hours: {request.constraints.working_hours_start}:00 - {request.constraints.working_hours_end}:00")
+        print(f"Event category: {getattr(request.constraints, 'event_category', 'NOT SET')}")
+        print(f"Date range: {request.constraints.earliest_date.strftime('%Y-%m-%d')} to {request.constraints.latest_date.strftime('%Y-%m-%d')}")
+        for i, p in enumerate(request.participants, 1):
+            print(f"\nParticipant {i}: {p.name}")
+            print(f"  Busy slots: {len(p.calendar_summary.busy_slots)}")
+            if len(p.calendar_summary.busy_slots) > 0:
+                print(f"  Sample busy times:")
+                for slot in p.calendar_summary.busy_slots[:3]:
+                    print(f"    • {slot.start.strftime('%a %b %d, %I:%M %p')} - {slot.end.strftime('%I:%M %p')}")
+        print("="*80 + "\n")
+        
         # Validate request
         if len(request.participants) < 1:
             raise HTTPException(

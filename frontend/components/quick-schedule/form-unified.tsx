@@ -55,22 +55,36 @@ export function QuickScheduleForm() {
         const endDate = new Date(startDate)
         endDate.setDate(endDate.getDate() + 14)
 
+        // Map category to EventCategory enum
+        const eventCategoryMap: { [key: string]: string } = {
+          'meeting': 'MEETING',
+          'personal': 'PERSONAL',
+          'work': 'WORK',
+          'social': 'SOCIAL',
+          'health': 'HEALTH',
+          'focus': 'FOCUS_TIME',
+          'break': 'BREAK',
+        }
+
         const response = await fetch('/api/schedule', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            title: formData.title,
-            duration_minutes: parseInt(formData.duration),
-            participant_emails: participantEmails,
-            date_range: {
-              start: startDate.toISOString(),
-              end: endDate.toISOString(),
-            },
-            preferred_time: formData.time || undefined,
+            meeting_id: `quick-${Date.now()}`,
+            participant_emails: participantEmails.length > 0 ? participantEmails : [user?.email].filter(Boolean),
             constraints: {
+              duration_minutes: parseInt(formData.duration),
+              earliest_date: startDate.toISOString(),
+              latest_date: endDate.toISOString(),
+              working_hours_start: 9,
+              working_hours_end: 17,
+              allowed_days: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
+              buffer_minutes: 15,
+              timezone: 'UTC',
               max_candidates: 10,
+              event_category: eventCategoryMap[formData.category] || 'MEETING',
             },
           }),
         })

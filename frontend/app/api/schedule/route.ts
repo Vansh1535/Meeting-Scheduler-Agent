@@ -22,7 +22,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { ScheduleRequest, ScheduleResponse, ErrorResponse } from '@/types/scheduling';
 import type { ScheduleRequestWithEmails } from '@/types/scheduleRequest';
 import { persistSchedulingSession } from '@/lib/schedulingPersistence';
-import { isDatabaseEnabled } from '@/lib/supabase';
+import { isDatabaseEnabled, supabaseAdmin } from '@/lib/supabase';
 import { enrichParticipantsWithCalendars, checkParticipantCalendarStatus } from '@/lib/participantEnrichment';
 import { applyEnforcementRules, type EnforcementContext, type CandidateSlot } from '@/lib/schedulingEnforcement';
 
@@ -78,10 +78,37 @@ export async function POST(request: NextRequest) {
         body.constraints.timezone
       );
 
+      // Fetch holiday dates from Supabase to exclude from AI scheduling
+      let holiday_dates: string[] = [];
+      try {
+        if (body.userId && body.constraints?.earliest_date && body.constraints?.latest_date) {
+          const { data: holidayEvents } = await (supabaseAdmin as any)
+            .from('calendar_events')
+            .select('start_time')
+            .eq('user_id', body.userId)
+            .ilike('google_calendar_id', '%holiday%')
+            .gte('start_time', body.constraints.earliest_date)
+            .lte('start_time', body.constraints.latest_date);
+          if (holidayEvents) {
+            const seen = new Set<string>();
+            for (const e of holidayEvents) {
+              const d = (e.start_time as string).slice(0, 10);
+              seen.add(d);
+            }
+            holiday_dates = Array.from(seen);
+          }
+          if (holiday_dates.length > 0) {
+            console.log(`🎉 Excluding ${holiday_dates.length} holiday date(s) from scheduling: ${holiday_dates.join(', ')}`);
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ Could not fetch holiday dates (non-fatal):', err);
+      }
+
       enrichedRequest = {
         meeting_id: body.meeting_id,
         participants: enrichedParticipants,
-        constraints: body.constraints,
+        constraints: { ...body.constraints, holiday_dates },
         preferences: body.preferences,
       };
 

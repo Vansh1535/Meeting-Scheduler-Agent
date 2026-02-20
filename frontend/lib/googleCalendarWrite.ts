@@ -145,13 +145,17 @@ export async function createCalendarEvent(
     console.log(`✅ Calendar event created: ${event.id}`);
     console.log(`   Link: ${event.htmlLink}`);
 
-    // Step 5: Update database with success
-    await supabase.rpc('mark_writeback_success', {
-      p_meeting_id: meeting_id,
-      p_google_event_id: event.id,
-      p_google_calendar_id: calendar_id,
-      p_google_event_link: event.htmlLink || null,
-    });
+    // Step 5: Update database with success (best-effort — no meetings row for quick-schedule events)
+    try {
+      await supabase.rpc('mark_writeback_success', {
+        p_meeting_id: meeting_id,
+        p_google_event_id: event.id,
+        p_google_calendar_id: calendar_id,
+        p_google_event_link: event.htmlLink || null,
+      });
+    } catch (dbErr) {
+      console.warn('⚠️  mark_writeback_success skipped (no meetings row):', (dbErr as any)?.message);
+    }
 
     return {
       success: true,
@@ -167,12 +171,16 @@ export async function createCalendarEvent(
     const errorMessage = error.message || 'Unknown error';
     const shouldRetry = !errorMessage.includes('invalid_grant') && !errorMessage.includes('404');
 
-    // Update database with failure
-    await supabase.rpc('mark_writeback_failure', {
-      p_meeting_id: meeting_id,
-      p_error_message: errorMessage,
-      p_should_retry: shouldRetry,
-    });
+    // Update database with failure (best-effort)
+    try {
+      await supabase.rpc('mark_writeback_failure', {
+        p_meeting_id: meeting_id,
+        p_error_message: errorMessage,
+        p_should_retry: shouldRetry,
+      });
+    } catch (dbErr) {
+      console.warn('⚠️  mark_writeback_failure skipped (no meetings row):', (dbErr as any)?.message);
+    }
 
     return {
       success: false,

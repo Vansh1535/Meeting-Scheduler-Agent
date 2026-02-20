@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabase'
+import { createCalendarEvent } from '@/lib/googleCalendarWrite'
 
 interface CreateAIEventRequest {
   userId: string
@@ -47,6 +48,12 @@ export async function POST(request: NextRequest) {
     // Create unique event ID
     const eventId = `ai-scheduled-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
+    // Compulsory AI description
+    const aiSignature = '\n\n---\nThis event was created by AI Event Scheduler'
+    const finalDescription = body.description
+      ? `${body.description}${aiSignature}`
+      : `AI-scheduled meeting (Score: ${body.aiScore?.toFixed(1) ?? 'N/A'}/100)\n\nReasoning: ${body.aiReasoning || 'Optimal time slot selected by AI'}${aiSignature}`
+
     // Prepare raw event metadata
     const rawEvent = {
       source: 'ai_analysis',
@@ -57,14 +64,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert calendar event
-    const { data: newEvent, error: insertError } = await supabase
+    const { data: newEvent, error: insertError } = await (supabase as any)
       .from('calendar_events')
       .insert({
         user_id: body.userId,
         google_event_id: eventId,
         google_calendar_id: 'primary',
         title: body.title,
-        description: body.description || '',
+        description: finalDescription,
         location: '',
         start_time: body.startTime,
         end_time: body.endTime,
@@ -92,6 +99,31 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('✅ AI-scheduled event created:', newEvent.id, '-', body.title)
+
+    // Write to Google Calendar so attendees receive invite emails
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    const gcalResult = await createCalendarEvent({
+      meeting_id: newEvent.id, // use DB row id as idempotency key
+      organizer_user_id: body.userId,
+      summary: body.title,
+      description: finalDescription,
+      start_time: body.startTime,
+      end_time: body.endTime,
+      timezone,
+      attendees: body.participantEmails || [],
+      send_updates: 'all', // Google sends invite emails automatically
+    })
+
+    if (!gcalResult.success) {
+      console.warn('⚠️  Google Calendar write-back failed (event saved to DB):', gcalResult.error)
+    } else {
+      // Update DB row with the real Google Calendar event ID and link
+      await (supabase as any).from('calendar_events').update({
+        google_event_id: gcalResult.google_event_id,
+        raw_event: { ...rawEvent, google_event_link: gcalResult.html_link },
+      }).eq('id', newEvent.id)
+      console.log('📧 Google Calendar invite sent to:', body.participantEmails?.join(', '))
+    }
 
     return NextResponse.json({
       success: true,

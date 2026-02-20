@@ -50,6 +50,8 @@ export interface SchedulingConstraints {
   buffer_minutes: number;
   timezone: string;
   max_candidates: number;
+  event_category?: 'MEETING' | 'PERSONAL' | 'WORK' | 'SOCIAL' | 'HEALTH' | 'FOCUS_TIME' | 'BREAK';
+  holiday_dates?: string[];
 }
 
 export interface ScheduleRequest {
@@ -75,6 +77,8 @@ export interface MeetingSlotCandidate {
     conflict_proximity: number;
     fragmentation: number;
     optimization?: number;
+    same_day_gap_bonus?: number;
+    time_differentiation?: number;
     weights?: {
       availability: 35;
       preference: 25;

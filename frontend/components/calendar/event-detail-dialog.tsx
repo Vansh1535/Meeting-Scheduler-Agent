@@ -2,12 +2,14 @@
 
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Calendar, Clock, MapPin, Users, FileText, User, Briefcase, PartyPopper, Heart, Video, Trash2, Copy } from 'lucide-react'
+import { Calendar, Clock, MapPin, Users, FileText, User, Briefcase, PartyPopper, Heart, Video, Trash2, Copy, Pencil, X, Check } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { useUser } from '@/contexts/user-context'
 
 // Helper function to detect category from event title/description
 function detectCategory(title: string, description?: string): string {
@@ -98,12 +100,65 @@ export function EventDetailDialog({ open, onOpenChange, events, selectedDate, hi
   const [deleteReason, setDeleteReason] = useState('')
   const [notifyAttendees, setNotifyAttendees] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [editingEventId, setEditingEventId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<any>({})
+  const [isSaving, setIsSaving] = useState(false)
+  const { user } = useUser()
 
   if (!selectedDate || events.length === 0) return null
 
   const handleDeleteClick = (event: any) => {
     setSelectedEvent(event)
     setDeleteDialogOpen(true)
+  }
+
+  const startEditMode = (event: any) => {
+    const start = new Date(event.startTime || event.start_time)
+    const end   = new Date(event.endTime   || event.end_time)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    setEditForm({
+      title:       event.title || event.summary || '',
+      description: event.description || '',
+      location:    event.location || '',
+      date:        `${start.getFullYear()}-${pad(start.getMonth()+1)}-${pad(start.getDate())}`,
+      startTime:   `${pad(start.getHours())}:${pad(start.getMinutes())}`,
+      endTime:     `${pad(end.getHours())}:${pad(end.getMinutes())}`,
+      notifyAttendees: true,
+    })
+    setEditingEventId(event.id)
+  }
+
+  const handleSaveEdit = async (event: any) => {
+    if (!user?.id) return
+    setIsSaving(true)
+    try {
+      const startISO = new Date(`${editForm.date}T${editForm.startTime}`).toISOString()
+      const endISO   = new Date(`${editForm.date}T${editForm.endTime}`).toISOString()
+      const res = await fetch('/api/calendar/update-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId:          event.id,
+          userId:           user.id,
+          title:            editForm.title,
+          description:      editForm.description,
+          startTime:        startISO,
+          endTime:          endISO,
+          location:         editForm.location,
+          notifyAttendees:  editForm.notifyAttendees,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Update failed')
+      }
+      setEditingEventId(null)
+      window.location.reload()
+    } catch (err: any) {
+      alert(`Failed to save: ${err.message}`)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleDeleteConfirm = async () => {
@@ -211,12 +266,16 @@ export function EventDetailDialog({ open, onOpenChange, events, selectedDate, hi
             const CategoryIcon = categoryConfig.icon
             
             // Determine if this is a Google Calendar event
-            const isGoogleEvent = event.source === 'google'
+            // Check both source and source_platform to catch all AI Platform events
+            const isAIPlatformEvent = event.source === 'ai' || event.source_platform === 'ai_platform'
+            const isGoogleEvent = !isAIPlatformEvent
             
             // Get meeting link (use google_event_link if available, otherwise construct from event ID)
             const meetingLink = event.google_event_link || 
               (event.google_event_id ? `https://calendar.google.com/calendar/event?eid=${event.google_event_id}` : null)
             
+            const isEditing = editingEventId === event.id
+
             return (
               <div
                 key={idx}
@@ -228,17 +287,80 @@ export function EventDetailDialog({ open, onOpenChange, events, selectedDate, hi
                     <span className={`w-1 h-6 bg-gradient-to-b ${categoryConfig.borderColor} rounded-full`} />
                     {event.title || event.summary || 'Untitled Event'}
                   </h3>
-                  <Badge 
-                    variant="secondary" 
-                    className={`text-xs font-semibold whitespace-nowrap ${
-                      isGoogleEvent 
-                        ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-orange-600 dark:text-orange-400 border-orange-500/30' 
-                        : 'bg-gradient-to-r from-slate-800/20 to-red-600/20 text-red-600 dark:text-red-400 border-red-500/30'
-                    }`}
-                  >
-                    {isGoogleEvent ? 'GOOGLE CAL' : 'AI PLATFORM'}
-                  </Badge>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Badge 
+                      variant="secondary" 
+                      className={`text-xs font-semibold whitespace-nowrap ${
+                        isGoogleEvent 
+                          ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-orange-600 dark:text-orange-400 border-orange-500/30' 
+                          : 'bg-gradient-to-r from-slate-800/20 to-red-600/20 text-red-600 dark:text-red-400 border-red-500/30'
+                      }`}
+                    >
+                      {isGoogleEvent ? 'GOOGLE CAL' : 'AI PLATFORM'}
+                    </Badge>
+                    {!isEditing && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => startEditMode(event)}
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                        title="Edit event"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
+
+                {/* Inline Edit Form */}
+                {isEditing && (
+                  <div className="space-y-3 mb-4 p-3 rounded-lg border border-primary/30 bg-primary/5">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Title</Label>
+                      <Input value={editForm.title} onChange={e => setEditForm((f: any) => ({ ...f, title: e.target.value }))} className="h-8 text-sm" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Location</Label>
+                      <Input value={editForm.location} onChange={e => setEditForm((f: any) => ({ ...f, location: e.target.value }))} className="h-8 text-sm" placeholder="Add location" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Date</Label>
+                        <Input type="date" value={editForm.date} onChange={e => setEditForm((f: any) => ({ ...f, date: e.target.value }))} className="h-8 text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Start</Label>
+                        <Input type="time" value={editForm.startTime} onChange={e => setEditForm((f: any) => ({ ...f, startTime: e.target.value }))} className="h-8 text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">End</Label>
+                        <Input type="time" value={editForm.endTime} onChange={e => setEditForm((f: any) => ({ ...f, endTime: e.target.value }))} className="h-8 text-sm" />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Description</Label>
+                      <Textarea value={editForm.description} onChange={e => setEditForm((f: any) => ({ ...f, description: e.target.value }))} className="text-sm min-h-[70px] resize-none" placeholder="Add description" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`notify-edit-${idx}`}
+                        checked={editForm.notifyAttendees}
+                        onCheckedChange={v => setEditForm((f: any) => ({ ...f, notifyAttendees: !!v }))}
+                      />
+                      <Label htmlFor={`notify-edit-${idx}`} className="text-xs font-normal cursor-pointer">Notify attendees of changes</Label>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <Button size="sm" onClick={() => handleSaveEdit(event)} disabled={isSaving} className="flex-1 h-8 text-xs">
+                        <Check className="w-3.5 h-3.5 mr-1" />
+                        {isSaving ? 'Saving...' : 'Save Changes'}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setEditingEventId(null)} disabled={isSaving} className="flex-1 h-8 text-xs">
+                        <X className="w-3.5 h-3.5 mr-1" />
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-2 text-sm">
                   {/* Time */}
