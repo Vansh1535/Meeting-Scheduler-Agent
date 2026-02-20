@@ -1,10 +1,11 @@
 /**
  * API Route: /api/schedule/quick
  * Accepts simplified scheduling requests from the frontend.
+ * Creates calendar events directly without multi-participant analysis.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin as supabase } from '@/lib/supabase'
 
 interface QuickScheduleRequest {
   userId: string
@@ -36,58 +37,69 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (userError || !user?.email) {
+      console.error('User lookup failed:', userError, 'userId:', body.userId)
       return NextResponse.json(
         { error: 'User not found', message: 'Invalid userId' },
         { status: 404 }
       )
     }
 
-    const preferredDateTime = new Date(`${body.preferredDate}T${body.preferredTime}:00`)
-    const earliestDate = new Date(preferredDateTime)
-    earliestDate.setDate(earliestDate.getDate() - 2)
+    // Create event directly in database
+    const startDateTime = new Date(`${body.preferredDate}T${body.preferredTime}:00`)
+    const endDateTime = new Date(startDateTime.getTime() + body.duration * 60000)
+    const eventId = `ai-quick-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
-    const latestDate = new Date(preferredDateTime)
-    latestDate.setDate(latestDate.getDate() + 2)
+    const { data: newEvent, error: eventError } = await supabase
+      .from('calendar_events')
+      .insert({
+        user_id: body.userId,
+        google_event_id: eventId,
+        google_calendar_id: 'primary',
+        title: body.title,
+        description: body.description || '',
+        location: '',
+        start_time: startDateTime.toISOString(),
+        end_time: endDateTime.toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+        is_all_day: false,
+        status: body.category || 'confirmed',
+        visibility: 'default',
+        attendee_count: 1,
+        is_organizer: true,
+        response_status: 'accepted',
+        is_recurring: false,
+        source_platform: 'ai_platform',
+        raw_event: {
+          source: 'quick_schedule',
+          category: body.category,
+          priority: body.priority,
+          flexibility: body.flexibility,
+        },
+        synced_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
 
-    const scheduleRequest = {
-      meeting_id: `quick-${Date.now()}`,
-      participant_emails: [user.email, user.email],
-      userId: body.userId,
-      constraints: {
-        duration_minutes: body.duration || 30,
-        earliest_date: earliestDate.toISOString(),
-        latest_date: latestDate.toISOString(),
-        working_hours_start: 9,
-        working_hours_end: 17,
-        buffer_minutes: 15,
-        timezone: 'America/New_York',
-        max_candidates: 5,
-        allowed_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-      },
-      preferences: {
-        priority: body.priority || 'medium',
-        category: body.category || 'meeting',
-        preferred_time: preferredDateTime.toISOString(),
-        flexibility: body.flexibility || 'flexible',
-      },
+    if (eventError) {
+      console.error('Failed to create calendar event:', eventError)
+      return NextResponse.json(
+        { error: 'Failed to create event', message: eventError.message },
+        { status: 500 }
+      )
     }
 
-    const response = await fetch(`${request.nextUrl.origin}/api/schedule`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(scheduleRequest),
-    })
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      return NextResponse.json(data, { status: response.status })
-    }
+    console.log('✅ Quick schedule event created:', newEvent.id)
 
     return NextResponse.json({
       success: true,
-      meetingId: scheduleRequest.meeting_id,
-      result: data,
+      event: {
+        id: newEvent.id,
+        title: newEvent.title,
+        startTime: newEvent.start_time,
+        endTime: newEvent.end_time,
+        source: 'ai',
+      },
+      message: 'Event created successfully',
     })
   } catch (error: any) {
     console.error('Quick schedule error:', error)

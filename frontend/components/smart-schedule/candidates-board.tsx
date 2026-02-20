@@ -22,10 +22,23 @@ import type { ScheduleResponse, MeetingSlotCandidate } from '@/types/scheduling'
 
 interface CandidatesBoardProps {
   results: ScheduleResponse
+  meetingTitle: string
+  meetingDescription?: string
+  participantEmails: string[]
+  duration: number
+  userId: string
   onReset: () => void
 }
 
-export function CandidatesBoard({ results, onReset }: CandidatesBoardProps) {
+export function CandidatesBoard({ 
+  results, 
+  meetingTitle,
+  meetingDescription,
+  participantEmails,
+  duration,
+  userId,
+  onReset 
+}: CandidatesBoardProps) {
   const [selectedCandidate, setSelectedCandidate] = useState<MeetingSlotCandidate>(
     results.candidates[0] || null
   )
@@ -49,30 +62,47 @@ export function CandidatesBoard({ results, onReset }: CandidatesBoardProps) {
     setIsCreating(true)
     
     try {
-      // Store event data in localStorage for calendar page
-      const eventData = {
-        start: selectedCandidate.slot.start,
-        end: selectedCandidate.slot.end,
-        participants: selectedCandidate.participants || [],
-        score: selectedCandidate.score,
-        reasoning: selectedCandidate.reasoning,
+      // Create the actual calendar event in the database
+      const startTime = new Date(selectedCandidate.slot.start)
+      const endTime = new Date(selectedCandidate.slot.end)
+      
+      const response = await fetch('/api/calendar/create-ai-event', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          title: meetingTitle,
+          description: meetingDescription || `AI-scheduled meeting (Score: ${selectedCandidate.score.toFixed(1)}/100)\n\nReasoning: ${selectedCandidate.reasoning}`,
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
+          participantEmails,
+          aiScore: selectedCandidate.score,
+          aiReasoning: selectedCandidate.reasoning,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+        throw new Error(errorData.message || 'Failed to create event')
       }
+
+      const result = await response.json()
       
-      localStorage.setItem('pendingEvent', JSON.stringify(eventData))
-      
-      toast.success('Event scheduled successfully!', {
+      toast.success('Event created successfully!', {
         description: `Meeting scheduled for ${new Date(selectedCandidate.slot.start).toLocaleString()}`,
       })
       
-      // Navigate to calendar
+      // Navigate to calendar after a brief delay
       setTimeout(() => {
         router.push('/calendar')
       }, 1000)
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create event:', error)
       toast.error('Failed to create event', {
-        description: 'Please try again or create the event manually in your calendar.',
+        description: error.message || 'Please try again or create the event manually in your calendar.',
       })
     } finally {
       setIsCreating(false)

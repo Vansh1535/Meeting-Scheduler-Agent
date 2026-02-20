@@ -86,7 +86,9 @@ export async function GET(request: NextRequest) {
         attendeeCount: event.attendee_count,
         isOrganizer: event.is_organizer,
         source: source === 'ai_platform' ? 'ai' : 'google', // Use database source_platform field
+        source_platform: event.source_platform, // Preserve original source_platform for UI
         google_event_id: event.google_event_id, // Keep google_event_id for linking
+        google_calendar_id: event.google_calendar_id, // Keep for holiday detection
         attendees: attendeeList,
         google_event_link: event.raw_event?.hangoutLink || event.raw_event?.conferenceData?.entryPoints?.find((ep: any) => ep.entryPointType === 'video')?.uri,
       }

@@ -119,7 +119,10 @@ export function UpcomingEvents() {
     const isGoogleEvent = item.source === 'google'
     
     if (isGoogleEvent) {
-      // Calendar event format (from Google Calendar)
+      // Calendar event format - check source_platform to distinguish Google vs AI
+      const isAIPlatformEvent = item.source_platform === 'ai_platform'
+      const isHolidayEvent = !isAIPlatformEvent && typeof item.google_calendar_id === 'string' && item.google_calendar_id.includes('holiday')
+      
       const startTime = new Date(item.startTime || item.start_time)
       const endTime = new Date(item.endTime || item.end_time)
       const eventDate = startTime.toLocaleDateString('en-US', { 
@@ -144,11 +147,11 @@ export function UpcomingEvents() {
       return {
         number: String(idx + 1).padStart(2, '0'),
         title: eventTitle,
-        subtitle: 'GOOGLE CAL',
-        gradient: 'orange-red' as const, // Yellow/Orange for Google Calendar
-        hexColor: 'f59e0b',
+        subtitle: isAIPlatformEvent ? 'AI SCHEDULED' : isHolidayEvent ? 'SOCIAL' : 'GOOGLE CAL',
+        gradient: isAIPlatformEvent ? 'red-dark' as const : isHolidayEvent ? 'green' as const : 'orange-red' as const,
+        hexColor: isAIPlatformEvent ? 'ef4444' : isHolidayEvent ? '10b981' : 'f59e0b',
         eventDate: `${eventDate}: ${eventTime} - ${eventEndTime}`,
-        category: eventCategory,
+        category: isHolidayEvent ? 'social' as const : eventCategory,
         eventData: item,
       }
     } else {

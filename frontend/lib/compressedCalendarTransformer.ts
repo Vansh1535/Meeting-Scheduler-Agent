@@ -198,24 +198,20 @@ export function generateMockCompressedCalendar(
     user_id: userId,
     timezone,
     busy_slots: [
-      // Mock: Some busy slots for next week
+      // Mock: Minimal busy slots to allow more availability
+      // Just one slot on Saturday (weekend, shouldn't affect weekday scheduling)
       {
-        start: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
-        end: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000).toISOString(),
-        timezone,
-      },
-      {
-        start: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // Day after
-        end: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000).toISOString(),
+        start: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000 + 10 * 60 * 60 * 1000).toISOString(), // Tomorrow at 10 AM
+        end: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000 + 11 * 60 * 60 * 1000).toISOString(), // Tomorrow at 11 AM
         timezone,
       },
     ],
     weekly_meeting_count: 8,
     peak_meeting_hours: [10, 14],
     preference_patterns: {
-      preferred_days: ['tuesday', 'wednesday', 'thursday'],
-      preferred_hours_start: 10,
-      preferred_hours_end: 16,
+      preferred_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+      preferred_hours_start: 9,
+      preferred_hours_end: 17,
       avg_meeting_duration_minutes: 60,
       buffer_minutes: 15,
       avoids_back_to_back: true,

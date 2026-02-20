@@ -36,6 +36,7 @@ export interface FetchEventsOptions {
   timeMax?: Date; // Default: 12 months ahead
   maxResults?: number; // Per page, default: 250
   singleEvents?: boolean; // Expand recurring events, default: true
+  allCalendars?: boolean; // Fetch from all user calendars (default: true)
 }
 
 /**
@@ -43,29 +44,23 @@ export interface FetchEventsOptions {
  * 
  * By default, fetches 12 months of calendar history for ScaleDown compression.
  */
-export async function fetchCalendarEvents(
-  userId: string,
-  options: FetchEventsOptions = {}
+/**
+ * Fetch events from a single calendar ID
+ */
+async function fetchEventsFromCalendar(
+  calendar: any,
+  calendarId: string,
+  timeMin: Date,
+  timeMax: Date,
+  maxResults: number,
+  singleEvents: boolean
 ): Promise<CalendarEvent[]> {
-  const {
-    calendarId = 'primary',
-    timeMin = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000), // 12 months ago
-    timeMax = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 12 months ahead
-    maxResults = 250,
-    singleEvents = true,
-  } = options;
-
-  const oauth2Client = await getAuthenticatedClient(userId);
-  const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-
-  const allEvents: CalendarEvent[] = [];
+  const events: CalendarEvent[] = [];
   let pageToken: string | undefined = undefined;
   let apiCallCount = 0;
 
   do {
     apiCallCount++;
-    console.log(`Fetching calendar events (page ${apiCallCount}) for user ${userId}...`);
-
     const response = await calendar.events.list({
       calendarId,
       timeMin: timeMin.toISOString(),
@@ -77,24 +72,85 @@ export async function fetchCalendarEvents(
     });
 
     const items = response.data.items || [];
-    
     for (const event of items) {
       const parsedEvent = parseGoogleEvent(event, calendarId);
-      if (parsedEvent) {
-        allEvents.push(parsedEvent);
-      }
+      if (parsedEvent) events.push(parsedEvent);
     }
 
     pageToken = response.data.nextPageToken || undefined;
-    
-    // Safety limit: prevent infinite loops
-    if (apiCallCount > 100) {
-      console.warn(`API call limit reached (${apiCallCount} calls). Stopping pagination.`);
-      break;
-    }
+    if (apiCallCount > 50) break; // safety limit per calendar
   } while (pageToken);
 
-  console.log(`✅ Fetched ${allEvents.length} events from Google Calendar (${apiCallCount} API calls)`);
+  return events;
+}
+
+export async function fetchCalendarEvents(
+  userId: string,
+  options: FetchEventsOptions = {}
+): Promise<CalendarEvent[]> {
+  const {
+    calendarId = 'primary',
+    timeMin = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000), // 12 months ago
+    timeMax = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 12 months ahead
+    maxResults = 250,
+    singleEvents = true,
+    allCalendars = true, // Fetch from all calendars by default
+  } = options;
+
+  const oauth2Client = await getAuthenticatedClient(userId);
+  const calendarClient = google.calendar({ version: 'v3', auth: oauth2Client });
+
+  const allEvents: CalendarEvent[] = [];
+  const seenEventIds = new Set<string>(); // Deduplicate across calendars
+
+  // Get all user calendars when allCalendars is true
+  let calendarIds: string[] = [calendarId];
+
+  if (allCalendars) {
+    try {
+      const calListResponse = await calendarClient.calendarList.list({
+        minAccessRole: 'reader', // Include all calendars user can read
+      });
+      const items = calListResponse.data.items || [];
+
+      // Include all calendars that are not hidden and not declined
+      calendarIds = items
+        .filter(cal => !cal.deleted && cal.id)
+        .map(cal => cal.id!)
+        .filter(Boolean);
+
+      console.log(`📅 Found ${calendarIds.length} calendars for user ${userId}:`, calendarIds);
+    } catch (err) {
+      // Fall back to primary only
+      console.warn('Could not fetch calendar list, falling back to primary:', err);
+      calendarIds = ['primary'];
+    }
+  }
+
+  // Fetch events from each calendar
+  for (const calId of calendarIds) {
+    try {
+      console.log(`Fetching events from calendar: ${calId}`);
+      const calEvents = await fetchEventsFromCalendar(
+        calendarClient, calId, timeMin, timeMax, maxResults, singleEvents
+      );
+
+      // Deduplicate
+      for (const event of calEvents) {
+        if (!seenEventIds.has(event.google_event_id)) {
+          seenEventIds.add(event.google_event_id);
+          allEvents.push(event);
+        }
+      }
+
+      console.log(`  → Got ${calEvents.length} events from ${calId}`);
+    } catch (err: any) {
+      // Skip calendars we can't read (e.g. holidays shown but not owned)
+      console.warn(`  ⚠ Skipping calendar ${calId}: ${err.message}`);
+    }
+  }
+
+  console.log(`✅ Fetched ${allEvents.length} total events across ${calendarIds.length} calendars`);
 
   return allEvents;
 }
@@ -160,7 +216,7 @@ export async function storeCalendarEvents(
   const currentEventIds = events.map(e => e.google_event_id);
 
   // Fetch all AI Platform events for this user (for existing events without extended properties)
-  const { data: aiMeetings } = await supabase
+  const { data: aiMeetings } = await supabaseAdmin
     .from('meetings')
     .select('google_event_id')
     .eq('user_id', userId)
@@ -176,23 +232,19 @@ export async function storeCalendarEvents(
     const batch = events.slice(i, i + batchSize);
 
     for (const event of batch) {
-      const { data: existing } = await supabase
+      const { data: existing } = await supabaseAdmin
         .from('calendar_events')
         .select('id')
         .eq('user_id', userId)
         .eq('google_event_id', event.google_event_id)
         .single();
 
+      const hasExtendedProperty = event.raw_event?.extendedProperties?.private?.source_platform === 'ai_platform';
+      const isInMeetingsTable = aiEventIds.has(event.google_event_id);
+      const sourcePlatform = (hasExtendedProperty || isInMeetingsTable) ? 'ai_platform' : 'google';
+
       if (existing) {
-        // Update existing event
-        // Check if this event is from AI Platform using multiple detection methods:
-        // 1. Extended properties (for new events)
-        // 2. Meetings table lookup (for existing events without extended properties)
-        const hasExtendedProperty = event.raw_event?.extendedProperties?.private?.source_platform === 'ai_platform';
-        const isInMeetingsTable = aiEventIds.has(event.google_event_id);
-        const sourcePlatform = (hasExtendedProperty || isInMeetingsTable) ? 'ai_platform' : 'google';
-        
-        const { error } = await supabase
+        const { error } = await supabaseAdmin
           .from('calendar_events')
           .update({
             google_calendar_id: event.google_calendar_id,
@@ -217,16 +269,9 @@ export async function storeCalendarEvents(
           .eq('id', existing.id);
 
         if (!error) updated++;
+        else console.error('Update error:', error.message);
       } else {
-        // Insert new event
-        // Check if this event is from AI Platform using multiple detection methods:
-        // 1. Extended properties (for new events)
-        // 2. Meetings table lookup (for existing events without extended properties)
-        const hasExtendedProperty = event.raw_event?.extendedProperties?.private?.source_platform === 'ai_platform';
-        const isInMeetingsTable = aiEventIds.has(event.google_event_id);
-        const sourcePlatform = (hasExtendedProperty || isInMeetingsTable) ? 'ai_platform' : 'google';
-        
-        const { error } = await supabase
+        const { error } = await supabaseAdmin
           .from('calendar_events')
           .insert({
             user_id: userId,
@@ -252,6 +297,7 @@ export async function storeCalendarEvents(
           });
 
         if (!error) added++;
+        else console.error('Insert error:', error.message);
       }
     }
 
@@ -259,12 +305,14 @@ export async function storeCalendarEvents(
   }
 
   // DELETE events that no longer exist in Google Calendar
+  // BUT: Only delete Google Calendar events, NOT AI Platform events
   let deleted = 0;
   if (currentEventIds.length > 0) {
-    const { data: deletedEvents, error: deleteError } = await supabase
+    const { data: deletedEvents, error: deleteError } = await supabaseAdmin
       .from('calendar_events')
       .delete()
       .eq('user_id', userId)
+      .eq('source_platform', 'google') // Only delete Google Calendar events
       .not('google_event_id', 'in', `(${currentEventIds.join(',')})`)
       .select('id');
 
@@ -272,11 +320,13 @@ export async function storeCalendarEvents(
       deleted = deletedEvents.length;
     }
   } else {
-    // If no events from Google, delete all events for this user
-    const { data: deletedEvents, error: deleteError } = await supabase
+    // If no events from Google, delete only Google Calendar events for this user
+    // Keep AI Platform events intact
+    const { data: deletedEvents, error: deleteError } = await supabaseAdmin
       .from('calendar_events')
       .delete()
       .eq('user_id', userId)
+      .eq('source_platform', 'google') // Only delete Google Calendar events
       .select('id');
 
     if (!deleteError && deletedEvents) {

@@ -216,8 +216,11 @@ export function MonthView({ highlightEvent, onMonthChange }: MonthViewProps) {
                 // Check for AI Platform vs Google Calendar events
                 const aiEventCount = dayEvents.filter(e => e.source === 'ai').length
                 const googleEventCount = dayEvents.filter(e => e.source === 'google').length
+                const holidayEventCount = dayEvents.filter(e => e.source === 'google' && typeof e.google_calendar_id === 'string' && e.google_calendar_id.includes('holiday')).length
+                const regularGoogleCount = googleEventCount - holidayEventCount
                 const hasAiEvents = aiEventCount > 0
                 const hasGoogleEvents = googleEventCount > 0
+                const hasHolidayOnly = holidayEventCount > 0 && regularGoogleCount === 0 && aiEventCount === 0
                 const hasBothTypes = hasAiEvents && hasGoogleEvents
                 
                 // Get category-specific glow colors
@@ -229,6 +232,8 @@ export function MonthView({ highlightEvent, onMonthChange }: MonthViewProps) {
                   eventGradient = 'from-red-500 via-purple-500 to-orange-500' // Mixed: AI (red) + Google (orange)
                 } else if (hasAiEvents) {
                   eventGradient = 'from-slate-800 to-red-600' // AI Platform: red
+                } else if (hasHolidayOnly) {
+                  eventGradient = 'from-green-400 to-emerald-600' // Holidays: green
                 } else if (hasGoogleEvents) {
                   eventGradient = 'from-yellow-500 to-orange-500' // Google Calendar: yellow-orange
                 }
@@ -274,6 +279,10 @@ export function MonthView({ highlightEvent, onMonthChange }: MonthViewProps) {
                   <div className="flex items-center">
                     <span className="inline-block w-3 h-3 rounded-full bg-gradient-to-br from-yellow-500 to-orange-500 mr-2" />
                     <span className="text-xs text-muted-foreground">Google Cal</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="inline-block w-3 h-3 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 mr-2" />
+                    <span className="text-xs text-muted-foreground">Holidays</span>
                   </div>
                   <div className="flex items-center">
                     <span className="inline-block w-3 h-3 rounded-full bg-gradient-to-br from-slate-800 to-red-600 mr-2" />

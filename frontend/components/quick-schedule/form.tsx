@@ -165,6 +165,11 @@ export function QuickScheduleForm({ formData, setFormData }: QuickScheduleFormPr
       <div className="w-full">
         <CandidatesBoard 
           results={analysisResults} 
+          meetingTitle={formData.title}
+          meetingDescription={formData.description}
+          participantEmails={formData.participants.split(',').map(e => e.trim()).filter(e => e.length > 0)}
+          duration={parseInt(formData.duration)}
+          userId={user!.id}
           onReset={() => {
             setAnalysisResults(null)
           }}

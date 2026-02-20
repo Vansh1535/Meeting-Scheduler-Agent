@@ -8,7 +8,7 @@ export interface EventCardProps {
   number: string
   title: string
   subtitle?: string
-  gradient: 'navy-red' | 'orange-red'
+  gradient: 'navy-red' | 'orange-red' | 'red-dark' | 'green'
   hexColor?: string
   eventDate?: string
   category?: EventCategory
@@ -39,9 +39,12 @@ export function EventCard({
   variant = 'default',
   onClick,
 }: EventCardProps) {
-  const isNavyRed = gradient === 'navy-red'
-  const bgGradient = isNavyRed
+  const bgGradient = gradient === 'navy-red'
     ? 'from-slate-900 to-red-600'
+    : gradient === 'red-dark'
+    ? 'from-red-600 to-red-900'
+    : gradient === 'green'
+    ? 'from-green-500 to-emerald-700'
     : 'from-amber-400 to-red-500'
   
   const IconComponent = categoryIcons[category] || Users

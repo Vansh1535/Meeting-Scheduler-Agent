@@ -111,12 +111,26 @@ export function EventDetailDialog({ open, onOpenChange, events, selectedDate, hi
     
     setIsDeleting(true)
     try {
-      // TODO: Implement delete API call
-      console.log('Deleting event:', {
-        eventId: selectedEvent.id,
-        reason: deleteReason,
-        notifyAttendees,
-      })
+      // Call delete API endpoint
+      const response = await fetch('/api/calendar/delete-event', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          eventId: selectedEvent.id,
+          reason: deleteReason,
+          notifyAttendees,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete event');
+      }
+
+      const result = await response.json();
+      console.log('✅ Event deleted successfully:', result);
       
       // Close dialogs and reset state
       setDeleteDialogOpen(false)
@@ -128,6 +142,7 @@ export function EventDetailDialog({ open, onOpenChange, events, selectedDate, hi
       window.location.reload()
     } catch (error) {
       console.error('Failed to delete event:', error)
+      alert(`Failed to delete event: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setIsDeleting(false)
     }

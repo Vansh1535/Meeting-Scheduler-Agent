@@ -64,7 +64,8 @@ class ApiClient {
    * Sync calendar with Google Calendar
    */
   async syncGoogleCalendar(userId: string) {
-    const response = await this.client.post(`/api/calendar/sync/${userId}`)
+    // Always force refresh to ensure newly created Google Calendar events are fetched
+    const response = await this.client.post(`/api/calendar/sync/${userId}`, { force_refresh: true })
     return response.data
   }
 
