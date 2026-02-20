@@ -25,7 +25,7 @@ Write-Host ""
 Write-Host "Checking database..." -ForegroundColor Yellow
 
 $headers = @{
-    "X-User-Email" = "42vanshlilani@gmail.com"
+    "X-User-Email" = "user1@example.com"
 }
 
 try {

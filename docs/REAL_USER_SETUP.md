@@ -4,7 +4,7 @@
 
 I've replaced all mock data with a **real user system**. Now the frontend will:
 
-1. **Use a single test user**: `42vanshlilani@gmail.com`
+1. **Use a single test user**: `user1@example.com`
 2. **Fetch real data from backend/database** instead of hardcoded mock data
 3. **Store all user data in Supabase** for persistence
 4. **Support calendar integration** with the Gmail account
@@ -20,7 +20,7 @@ You need to insert the test user into your Supabase database. Run this SQL in Su
 ```sql
 -- Insert test user
 INSERT INTO user_accounts (email, display_name, is_active, calendar_sync_enabled)
-VALUES ('42vanshlilani@gmail.com', 'Test User', true, true)
+VALUES ('user1@example.com', 'Test User', true, true)
 ON CONFLICT(email) DO NOTHING;
 ```
 
@@ -28,7 +28,7 @@ Or use the Supabase dashboard:
 1. Go to `user_accounts` table
 2. Click "Insert row"
 3. Add:
-   - `email`: `42vanshlilani@gmail.com`
+   - `email`: `user1@example.com`
    - `display_name`: `Test User`
    - `is_active`: true
    - `calendar_sync_enabled`: true
@@ -39,7 +39,7 @@ To test with real meeting data, insert some test events:
 
 ```sql
 -- Get your test user ID first
-SELECT id FROM user_accounts WHERE email = '42vanshlilani@gmail.com';
+SELECT id FROM user_accounts WHERE email = 'user1@example.com';
 
 -- Then insert a sample calendar event (replace USER_ID below)
 INSERT INTO calendar_events (
@@ -123,7 +123,7 @@ Real data → Display to user
 ## 🔄 Data Flow
 
 1. **User Context (`UserProvider`)** 
-   - Initializes with test user: `42vanshlilani@gmail.com`
+   - Initializes with test user: `user1@example.com`
    - Fetches/creates user in `user_accounts` table
    - Makes user available to all components via `useUser()` hook
 
@@ -154,7 +154,7 @@ Real data → Display to user
 - [ ] Analytics cards load real data (or show warning if backend down)
 - [ ] Upcoming Events fetches from `calendar_events` table
 - [ ] No mock data hardcoded anywhere
-- [ ] User email `42vanshlilani@gmail.com` displays in headers/settings
+- [ ] User email `user1@example.com` displays in headers/settings
 - [ ] Calendar sync works when you add Gmail credentials
 
 ---

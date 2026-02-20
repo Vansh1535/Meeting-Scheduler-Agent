@@ -5,8 +5,8 @@
     
 .DESCRIPTION
     This script sets up both users in the database and initiates calendar sync:
-    - User 1: 42vanshlilani@gmail.com
-    - User 2: vanshlilani15@gmail.com
+    - User 1: user1@example.com
+    - User 2: user2@example.com
     
     After running this, both users will have their real Google Calendar events synced,
     compressed with ScaleDown, and ready for intelligent multi-party scheduling.
@@ -21,8 +21,8 @@ Write-Host ""
 
 # Configuration
 $FRONTEND_URL = "http://localhost:3000"
-$USER1_EMAIL = "42vanshlilani@gmail.com"
-$USER2_EMAIL = "vanshlilani15@gmail.com"
+$USER1_EMAIL = "user1@example.com"
+$USER2_EMAIL = "user2@example.com"
 
 # Step 1: Check if frontend is running
 Write-Host "📡 Step 1: Checking if frontend is running..." -ForegroundColor Yellow
@@ -83,7 +83,7 @@ Write-Host "│  - User goes to /quick-schedule page" -ForegroundColor White
 Write-Host "│  - Enters meeting details:" -ForegroundColor White
 Write-Host "│    • Title: 'Project Discussion'" -ForegroundColor Gray
 Write-Host "│    • Duration: 60 minutes" -ForegroundColor Gray
-Write-Host "│    • Participants: '42vanshlilani@gmail.com, vanshlilani15@gmail.com'" -ForegroundColor Gray
+Write-Host "│    • Participants: 'user1@example.com, user2@example.com'" -ForegroundColor Gray
 Write-Host "│    • Date range: Next 14 days" -ForegroundColor Gray
 Write-Host "│  - Checks 'Show Analysis' to see AI insights" -ForegroundColor White
 Write-Host "│" -ForegroundColor White

@@ -5,8 +5,8 @@
 This document explains how the system handles **real 2-person scheduling** using actual Google Calendar data, AI agents, and ScaleDown compression.
 
 **Test Users:**
-- User 1: `42vanshlilani@gmail.com`
-- User 2: `vanshlilani15@gmail.com`
+- User 1: `user1@example.com`
+- User 2: `user2@example.com`
 
 ## System Architecture
 
@@ -39,7 +39,7 @@ This document explains how the system handles **real 2-person scheduling** using
 │  User goes to /quick-schedule page and enters:                      │
 │  • Meeting title: "Project Discussion"                              │
 │  • Duration: 60 minutes                                              │
-│  • Participants: "42vanshlilani@gmail.com, vanshlilani15@gmail.com"│
+│  • Participants: "user1@example.com, user2@example.com"│
 │  • Date range: Next 14 days                                         │
 │  • Enables "Show Analysis" for AI insights                          │
 │                                                                       │
@@ -309,7 +309,7 @@ This document explains how the system handles **real 2-person scheduling** using
 
 ### Example: Scheduling between 2 users
 
-**User 1: 42vanshlilani@gmail.com**
+**User 1: user1@example.com**
 - Calendar has: 150 events from past 12 months
 - Compressed to: 30KB of patterns
 - Preferences learned:
@@ -318,7 +318,7 @@ This document explains how the system handles **real 2-person scheduling** using
   - Peak days: Tuesday, Thursday
   - Average meeting: 45 minutes
 
-**User 2: vanshlilani15@gmail.com**
+**User 2: user2@example.com**
 - Calendar has: 200 events from past 12 months
 - Compressed to: 40KB of patterns
 - Preferences learned:

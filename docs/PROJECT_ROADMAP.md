@@ -23,7 +23,7 @@
 - [ ] Insert test user into Supabase:
   ```sql
   INSERT INTO user_accounts (email, display_name, is_active, calendar_sync_enabled)
-  VALUES ('42vanshlilani@gmail.com', 'Test User', true, true);
+  VALUES ('user1@example.com', 'Test User', true, true);
   ```
 - [ ] Add sample calendar events to `calendar_events` table
 

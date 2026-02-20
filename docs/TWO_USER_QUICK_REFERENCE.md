@@ -8,13 +8,13 @@
 - [ ] Supabase configured (`.env.local` with credentials)
 - [ ] Google OAuth configured (client ID + secret)
 
-### ✅ User 1: 42vanshlilani@gmail.com
+### ✅ User 1: user1@example.com
 - [ ] Complete Google OAuth (browser login)
 - [ ] Calendar sync completed
 - [ ] Compressed calendar exists in database
 - [ ] Verify: Check `/api/auth/google/status/[userId]`
 
-### ✅ User 2: vanshlilani15@gmail.com
+### ✅ User 2: user2@example.com
 - [ ] Complete Google OAuth (browser login)
 - [ ] Calendar sync completed
 - [ ] Compressed calendar exists in database
@@ -38,7 +38,7 @@ Navigate to: `http://localhost:3000/quick-schedule`
 Enter:
 - **Title:** "Project Discussion"
 - **Duration:** 60 minutes
-- **Participants:** `42vanshlilani@gmail.com, vanshlilani15@gmail.com`
+- **Participants:** `user1@example.com, user2@example.com`
 - **✓ Show Analysis** (to see AI insights)
 
 ## How It Works (Simplified)
@@ -119,8 +119,8 @@ Display on frontend
 {
   "meeting_id": "test_2user_20260218",
   "participant_emails": [
-    "42vanshlilani@gmail.com",
-    "vanshlilani15@gmail.com"
+    "user1@example.com",
+    "user2@example.com"
   ],
   "constraints": {
     "duration_minutes": 60,

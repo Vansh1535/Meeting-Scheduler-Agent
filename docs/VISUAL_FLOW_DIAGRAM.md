@@ -1,7 +1,7 @@
 # Visual Flow: Two-User Real Scheduling System
 
 ## 🎯 Goal
-Schedule a meeting between `42vanshlilani@gmail.com` and `vanshlilani15@gmail.com` using their real Google Calendar data and AI agents.
+Schedule a meeting between `user1@example.com` and `user2@example.com` using their real Google Calendar data and AI agents.
 
 ---
 
@@ -14,7 +14,7 @@ Schedule a meeting between `42vanshlilani@gmail.com` and `vanshlilani15@gmail.co
 │                                                                               │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-    User 1: 42vanshlilani@gmail.com          User 2: vanshlilani15@gmail.com
+    User 1: user1@example.com          User 2: user2@example.com
                     │                                      │
                     ▼                                      ▼
     ┌───────────────────────────┐          ┌───────────────────────────┐
@@ -59,8 +59,8 @@ Schedule a meeting between `42vanshlilani@gmail.com` and `vanshlilani15@gmail.co
             │   • Title: "Project Discussion"              │
             │   • Duration: 60 minutes                     │
             │   • Participants:                            │
-            │     - 42vanshlilani@gmail.com               │
-            │     - vanshlilani15@gmail.com               │
+            │     - user1@example.com               │
+            │     - user2@example.com               │
             │   • Date range: Next 14 days                │
             │   ☑️ Show Analysis (for AI insights)        │
             │                                              │
@@ -76,8 +76,8 @@ Schedule a meeting between `42vanshlilani@gmail.com` and `vanshlilani15@gmail.co
             │   {                                          │
             │     meeting_id: "...",                       │
             │     participant_emails: [                    │
-            │       "42vanshlilani@gmail.com",            │
-            │       "vanshlilani15@gmail.com"             │
+            │       "user1@example.com",            │
+            │       "user2@example.com"             │
             │     ],                                       │
             │     constraints: { ... }                     │
             │   }                                          │
@@ -118,7 +118,7 @@ Schedule a meeting between `42vanshlilani@gmail.com` and `vanshlilani15@gmail.co
             │     participants: [                          │
             │       {                                      │
             │         user_id: "uuid1",                    │
-            │         email: "42vanshlilani@gmail.com",   │
+            │         email: "user1@example.com",   │
             │         calendar_summary: {                  │
             │           busy_slots: [                      │
             │             {start: "...", end: "..."},      │
@@ -405,7 +405,7 @@ Shows:
 
 ## 📈 Data Flow Example
 
-**User 1:** 42vanshlilani@gmail.com
+**User 1:** user1@example.com
 - **Calendar:** 150 events (past 12 months)
 - **Compressed:** 30KB of patterns
 - **Preferences learned:**
@@ -414,7 +414,7 @@ Shows:
   - Peak days: Tuesday, Thursday
   - Typical meeting: 45 minutes
 
-**User 2:** vanshlilani15@gmail.com
+**User 2:** user2@example.com
 - **Calendar:** 200 events (past 12 months)
 - **Compressed:** 40KB of patterns
 - **Preferences learned:**

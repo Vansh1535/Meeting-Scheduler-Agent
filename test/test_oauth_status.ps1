@@ -5,7 +5,7 @@ Write-Host ""
 
 # Get user
 $headers = @{
-    "X-User-Email" = "42vanshlilani@gmail.com"
+    "X-User-Email" = "user1@example.com"
 }
 
 try {

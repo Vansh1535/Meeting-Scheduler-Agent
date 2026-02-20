@@ -4,7 +4,7 @@
     Test two-user scheduling with real calendar data
     
 .DESCRIPTION
-    Tests scheduling between 42vanshlilani@gmail.com and vanshlilani15@gmail.com
+    Tests scheduling between user1@example.com and user2@example.com
     using their real Google Calendar data.
 #>
 
@@ -12,8 +12,8 @@ $ErrorActionPreference = "Stop"
 
 # Configuration
 $FRONTEND_URL = "http://localhost:3000"
-$USER1_EMAIL = "42vanshlilani@gmail.com"
-$USER2_EMAIL = "vanshlilani15@gmail.com"
+$USER1_EMAIL = "user1@example.com"
+$USER2_EMAIL = "user2@example.com"
 
 Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host "  Testing Two-User Scheduling" -ForegroundColor Cyan
