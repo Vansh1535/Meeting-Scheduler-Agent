@@ -27,9 +27,9 @@ export function CandidatesList({ candidates, selectedCandidate, onSelect }: Cand
   }
 
   const getMedalIcon = (rank: number) => {
-    if (rank === 0) return <Medal className="h-5 w-5 text-yellow-500" />
-    if (rank === 1) return <Medal className="h-5 w-5 text-gray-400" />
-    if (rank === 2) return <Medal className="h-5 w-5 text-amber-600" />
+    if (rank === 0) return <Medal className="h-4 w-4 text-yellow-500" />
+    if (rank === 1) return <Medal className="h-4 w-4 text-gray-400" />
+    if (rank === 2) return <Medal className="h-4 w-4 text-amber-600" />
     return null
   }
 
@@ -40,15 +40,15 @@ export function CandidatesList({ candidates, selectedCandidate, onSelect }: Cand
   }
 
   return (
-    <Card className="h-[700px] flex flex-col">
-      <CardHeader>
+    <Card className="h-full flex flex-col">
+      <CardHeader className="flex-shrink-0 pb-3">
         <CardTitle className="text-lg flex items-center gap-2">
           <Medal className="h-5 w-5" />
           Ranked Options
         </CardTitle>
       </CardHeader>
       <CardContent className="flex-1 overflow-hidden p-0">
-        <ScrollArea className="h-full px-4 pb-4">
+        <ScrollArea className="h-full px-4 pb-4 pt-1">
           <div className="space-y-3">
             {candidates.map((candidate, index) => (
               <button
@@ -84,7 +84,7 @@ export function CandidatesList({ candidates, selectedCandidate, onSelect }: Cand
                   <p className="font-semibold text-sm">
                     {formatTime(candidate.slot.start)}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     {new Date(candidate.slot.end).toLocaleTimeString('en-US', {
                       hour: 'numeric',
                       minute: '2-digit',
@@ -95,11 +95,16 @@ export function CandidatesList({ candidates, selectedCandidate, onSelect }: Cand
 
                 {candidate.conflicts.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1">
-                    {candidate.conflicts.map((conflict, idx) => (
-                      <Badge key={idx} variant="secondary" className="text-xs">
+                    {candidate.conflicts.slice(0, 2).map((conflict, idx) => (
+                      <Badge key={idx} variant="secondary" className="text-xs py-0 h-5">
                         ⚠️ {conflict.split('@')[0]}
                       </Badge>
                     ))}
+                    {candidate.conflicts.length > 2 && (
+                      <Badge variant="secondary" className="text-xs py-0 h-5">
+                        +{candidate.conflicts.length - 2}
+                      </Badge>
+                    )}
                   </div>
                 )}
               </button>

@@ -62,10 +62,18 @@ export function QuickScheduleForm({ formData, setFormData }: QuickScheduleFormPr
           ? formData.participants.split(',').map(email => email.trim()).filter(email => email.length > 0)
           : []
 
+        // Ensure at least the current user's email is included
+        if (participantEmails.length === 0 && user?.email) {
+          participantEmails.push(user.email)
+        }
+
         // Calculate date range (use provided date or today + 14 days)
         const startDate = formData.date ? new Date(formData.date) : new Date()
         const endDate = new Date(startDate)
         endDate.setDate(endDate.getDate() + 14)
+
+        // Generate unique meeting ID
+        const meetingId = `meeting-${Date.now()}-${Math.random().toString(36).substring(7)}`
 
         const response = await fetch('/api/schedule', {
           method: 'POST',
@@ -73,22 +81,32 @@ export function QuickScheduleForm({ formData, setFormData }: QuickScheduleFormPr
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            title: formData.title,
-            duration_minutes: parseInt(formData.duration),
+            meeting_id: meetingId,
             participant_emails: participantEmails,
-            date_range: {
-              start: startDate.toISOString(),
-              end: endDate.toISOString(),
-            },
-            preferred_time: formData.time || undefined,
             constraints: {
+              duration_minutes: parseInt(formData.duration) || 60,
+              earliest_date: startDate.toISOString(),
+              latest_date: endDate.toISOString(),
+              working_hours_start: 9,
+              working_hours_end: 17,
+              allowed_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+              buffer_minutes: 15,
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
               max_candidates: 10,
             },
+            preferences: {
+              title: formData.title,
+              preferred_time: formData.time || undefined,
+            },
+            userId: user.id,
           }),
         })
 
         if (!response.ok) {
-          throw new Error('Failed to analyze schedule')
+          const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+          const errorMessage = errorData.message || `Failed to analyze schedule (${response.status})`
+          toast.error(errorMessage)
+          throw new Error(errorMessage)
         }
 
         const data: ScheduleResponse = await response.json()
@@ -144,15 +162,7 @@ export function QuickScheduleForm({ formData, setFormData }: QuickScheduleFormPr
   // If analysis results are shown, display the candidates board
   if (analysisResults) {
     return (
-      <div className="space-y-6">
-        <Button 
-          variant="outline" 
-          onClick={() => {
-            setAnalysisResults(null)
-          }}
-        >
-          ← Back to Form
-        </Button>
+      <div className="w-full">
         <CandidatesBoard 
           results={analysisResults} 
           onReset={() => {
@@ -180,7 +190,7 @@ export function QuickScheduleForm({ formData, setFormData }: QuickScheduleFormPr
   }
 
   return (
-    <Card className="w-full max-w-2xl rounded-2xl">
+    <Card className="w-full max-w-2xl mx-auto rounded-2xl">
       <CardHeader className="pb-6">
         <CardTitle className="text-2xl sm:text-3xl">Quick Schedule</CardTitle>
         <CardDescription className="text-base">Create a new event in just 30 seconds</CardDescription>
@@ -387,7 +397,7 @@ export function QuickScheduleForm({ formData, setFormData }: QuickScheduleFormPr
                     onChange={(e) => setFormData({ ...formData, participants: e.target.value })}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Leave empty for personal events. Required for meaningful AI analysis.
+                    Optional. Leave empty for personal events. Add others for multi-person scheduling.
                   </p>
                 </div>
 

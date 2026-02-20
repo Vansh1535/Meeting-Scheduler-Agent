@@ -79,10 +79,10 @@ async def schedule_meeting(request: ScheduleRequest) -> ScheduleResponse:
     
     try:
         # Validate request
-        if len(request.participants) < 2:
+        if len(request.participants) < 1:
             raise HTTPException(
                 status_code=400,
-                detail="At least 2 participants required"
+                detail="At least 1 participant required"
             )
         
         # Step 1: Find available time slots

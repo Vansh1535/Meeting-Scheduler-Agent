@@ -19,7 +19,7 @@ export default function QuickSchedulePage() {
 
   return (
     <ProtectedRoute>
-      <div className="pl-4 pr-8 py-8">
+      <div className="pl-4 pr-8 py-8 max-w-7xl mx-auto">
         {/* Simple Header */}
         <div className="mb-6 sm:mb-8">
           <h1 className="text-4xl sm:text-5xl font-bold text-foreground mb-2">
@@ -30,20 +30,13 @@ export default function QuickSchedulePage() {
           </p>
         </div>
 
-        {/* 2-Column Layout: Form + Suggestions */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] xl:grid-cols-[1fr_500px] gap-6 lg:gap-8">
-          {/* Left: Form */}
-          <div className="min-w-0">
-            <QuickScheduleForm formData={formData} setFormData={setFormData} />
-          </div>
-
-          {/* Right: AI Suggestions Panel */}
-          <div className="hidden lg:block">
-            <div className="sticky top-6">
-              <SuggestionsPanel formData={formData} />
-            </div>
-          </div>
+        {/* Full Width Layout */}
+        <div className="w-full">
+          <QuickScheduleForm formData={formData} setFormData={setFormData} />
         </div>
+
+        {/* Floating AI Assistant */}
+        <SuggestionsPanel formData={formData} />
       </div>
     </ProtectedRoute>
   )

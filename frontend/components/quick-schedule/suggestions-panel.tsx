@@ -1,10 +1,11 @@
 'use client'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Lightbulb, Clock, Users, TrendingUp, AlertCircle, CheckCircle2, Sparkles, Loader2 } from 'lucide-react'
+import { Lightbulb, Clock, Users, TrendingUp, AlertCircle, CheckCircle2, Sparkles, Loader2, X } from 'lucide-react'
 import { useEffect, useState, useMemo } from 'react'
 import { useCalendarEvents } from '@/hooks/use-calendar'
 import { useProductivityInsights } from '@/hooks/use-api'
+import { Button } from '@/components/ui/button'
 
 interface FormData {
   title: string
@@ -21,6 +22,7 @@ interface SuggestionsProps {
 }
 
 export function SuggestionsPanel({ formData }: SuggestionsProps) {
+  const [isOpen, setIsOpen] = useState(false)
   const [suggestions, setSuggestions] = useState<Array<{
     type: 'tip' | 'warning' | 'insight' | 'success'
     icon: any
@@ -384,89 +386,123 @@ export function SuggestionsPanel({ formData }: SuggestionsProps) {
   }
 
   return (
-    <div className="h-full overflow-y-auto">
-      <Card className="border-0 bg-transparent shadow-none">
-        <CardHeader className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 pb-4">
-          <CardTitle className="text-2xl flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-primary" />
-            AI Scheduling Assistant
-            {eventsLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-          </CardTitle>
-          <p className="text-sm text-muted-foreground mt-2">
-            {userPatterns.totalEvents > 0 
-              ? `Personalized insights from your ${userPatterns.totalEvents} events this month`
-              : 'Real-time tips and insights as you schedule'}
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {suggestions.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Lightbulb className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p className="text-sm">Fill out the form to see personalized suggestions</p>
+    <>
+      {/* Floating AI Assistant Button */}
+      <button
+        onClick={() => setIsOpen(true)}
+        className="fixed bottom-6 right-6 z-50 w-16 h-16 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group"
+        aria-label="Open AI Assistant"
+      >
+        <Sparkles className="h-7 w-7 group-hover:scale-110 transition-transform" />
+        {suggestions.length > 0 && (
+          <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
+            {suggestions.length}
+          </span>
+        )}
+      </button>
+
+      {/* Overlay Modal */}
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-background rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b bg-muted/50">
+              <div className="flex items-center gap-3">
+                <Sparkles className="h-6 w-6 text-primary" />
+                <div>
+                  <h2 className="text-2xl font-bold">AI Scheduling Assistant</h2>
+                  <p className="text-sm text-muted-foreground">
+                    {userPatterns.totalEvents > 0 
+                      ? `Personalized insights from your ${userPatterns.totalEvents} events this month`
+                      : 'Real-time tips and insights as you schedule'}
+                  </p>
+                </div>
+                {eventsLoading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsOpen(false)}
+                className="rounded-full"
+              >
+                <X className="h-5 w-5" />
+              </Button>
             </div>
-          ) : (
-            suggestions.map((suggestion, index) => {
-              const Icon = suggestion.icon
-              return (
-                <div
-                  key={index}
-                  className={`p-4 rounded-lg border transition-all duration-300 ${getBackgroundColor(suggestion.type)}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <Icon className={`h-5 w-5 mt-0.5 flex-shrink-0 ${getIconColor(suggestion.type)}`} />
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-sm mb-1">{suggestion.title}</h4>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        {suggestion.message}
-                      </p>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-3">
+                {suggestions.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Lightbulb className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">Fill out the form to see personalized suggestions</p>
+                  </div>
+                ) : (
+                  suggestions.map((suggestion, index) => {
+                    const Icon = suggestion.icon
+                    return (
+                      <div
+                        key={index}
+                        className={`p-4 rounded-lg border transition-all duration-300 ${getBackgroundColor(suggestion.type)}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <Icon className={`h-5 w-5 mt-0.5 flex-shrink-0 ${getIconColor(suggestion.type)}`} />
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold text-sm mb-1">{suggestion.title}</h4>
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              {suggestion.message}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+
+                {/* Quick Stats Footer - DYNAMIC from real data */}
+                {formData.title && userPatterns.totalEvents > 0 && (
+                  <div className="mt-8 pt-6 border-t">
+                    <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4" />
+                      Your Patterns
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3 rounded-lg bg-muted/50">
+                        <div className="text-xs text-muted-foreground mb-1">Avg Meeting Length</div>
+                        <div className="text-lg font-bold">{userPatterns.avgMeetingDuration}m</div>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/50">
+                        <div className="text-xs text-muted-foreground mb-1">This Week</div>
+                        <div className="text-lg font-bold">{userPatterns.meetingsThisWeek}</div>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/50">
+                        <div className="text-xs text-muted-foreground mb-1">Peak Hours</div>
+                        <div className="text-sm font-bold">
+                          {userPatterns.peakHours.length > 0 ? `${userPatterns.peakHours[0]}:00` : 'N/A'}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/50">
+                        <div className="text-xs text-muted-foreground mb-1">Total Events</div>
+                        <div className="text-lg font-bold text-primary">{userPatterns.totalEvents}</div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )
-            })
-          )}
-
-          {/* Quick Stats Footer - DYNAMIC from real data */}
-          {formData.title && userPatterns.totalEvents > 0 && (
-            <div className="mt-8 pt-6 border-t">
-              <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" />
-                Your Patterns
-              </h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-lg bg-muted/50">
-                  <div className="text-xs text-muted-foreground mb-1">Avg Meeting Length</div>
-                  <div className="text-lg font-bold">{userPatterns.avgMeetingDuration}m</div>
-                </div>
-                <div className="p-3 rounded-lg bg-muted/50">
-                  <div className="text-xs text-muted-foreground mb-1">This Week</div>
-                  <div className="text-lg font-bold">{userPatterns.meetingsThisWeek}</div>
-                </div>
-                <div className="p-3 rounded-lg bg-muted/50">
-                  <div className="text-xs text-muted-foreground mb-1">Peak Hours</div>
-                  <div className="text-sm font-bold">
-                    {userPatterns.peakHours.length > 0 ? `${userPatterns.peakHours[0]}:00` : 'N/A'}
+                )}
+                
+                {/* Loading state for Quick Stats */}
+                {formData.title && eventsLoading && (
+                  <div className="mt-8 pt-6 border-t">
+                    <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading your patterns...
+                    </h4>
                   </div>
-                </div>
-                <div className="p-3 rounded-lg bg-muted/50">
-                  <div className="text-xs text-muted-foreground mb-1">Total Events</div>
-                  <div className="text-lg font-bold text-primary">{userPatterns.totalEvents}</div>
-                </div>
+                )}
               </div>
             </div>
-          )}
-          
-          {/* Loading state for Quick Stats */}
-          {formData.title && eventsLoading && (
-            <div className="mt-8 pt-6 border-t">
-              <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading your patterns...
-              </h4>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

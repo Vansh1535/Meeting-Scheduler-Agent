@@ -200,7 +200,7 @@ class ScheduleRequest(BaseModel):
     meeting_id: str = Field(..., description="Unique meeting identifier")
     participants: List[Participant] = Field(
         ...,
-        min_length=2,
+        min_length=1,
         description="List of meeting participants"
     )
     constraints: SchedulingConstraints = Field(

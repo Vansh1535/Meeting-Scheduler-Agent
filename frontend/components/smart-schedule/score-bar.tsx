@@ -30,7 +30,7 @@ export function ScoreBar({ label, value, weight, color = 'blue', description }: 
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">

@@ -21,72 +21,68 @@ export function ScoreBreakdown({ candidate }: ScoreBreakdownProps) {
   }
 
   return (
-    <Card className="h-[700px] flex flex-col">
-      <CardHeader>
+    <Card className="h-full flex flex-col">
+      <CardHeader className="flex-shrink-0 pb-3">
         <CardTitle className="text-lg flex items-center gap-2">
           <BarChart3 className="h-5 w-5" />
           Score Analysis
         </CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 space-y-6">
-        {/* Overall Score Gauge */}
-        <div className="flex justify-center">
-          <ScoreGauge value={candidate.score} label="Overall Score" />
-        </div>
-
-        {/* Score Breakdown Bars */}
-        <div className="space-y-4">
-          <div className="text-sm font-semibold text-muted-foreground mb-3">
-            Factor Breakdown
+      <CardContent className="flex-1 overflow-y-auto p-5">
+        <div className="flex gap-6 h-full">
+          {/* Left: Overall Score Gauge */}
+          <div className="flex-shrink-0 flex items-center justify-center w-36">
+            <ScoreGauge value={candidate.score} label="Overall" size="lg" />
           </div>
 
-          <ScoreBar
-            label="Availability"
-            value={breakdown.availability}
-            weight={35}
-            color="green"
-            description="All participants free?"
-          />
+          {/* Right: Score Breakdown Bars */}
+          <div className="flex-1 space-y-3">
+            <div className="text-sm font-semibold text-muted-foreground mb-3">
+              Factor Breakdown
+            </div>
 
-          <ScoreBar
-            label="Preference"
-            value={breakdown.preference}
-            weight={25}
-            color="blue"
-            description="Matches your patterns"
-          />
-
-          <ScoreBar
-            label="Conflict Buffer"
-            value={breakdown.conflict_proximity}
-            weight={20}
-            color="yellow"
-            description="Spacing from other meetings"
-          />
-
-          <ScoreBar
-            label="Calendar Grouping"
-            value={breakdown.fragmentation}
-            weight={15}
-            color="purple"
-            description="Reduces calendar fragmentation"
-          />
-
-          {breakdown.optimization !== undefined && breakdown.optimization > 0 && (
             <ScoreBar
-              label="Optimization"
-              value={breakdown.optimization}
-              weight={5}
-              color="indigo"
-              description="Additional AI adjustments"
+              label="Availability"
+              value={breakdown.availability}
+              weight={35}
+              color="green"
+              description="All participants free?"
             />
-          )}
-        </div>
 
-        {/* Weight Legend */}
-        <div className="pt-4 border-t text-xs text-muted-foreground">
-          <p className="font-semibold mb-1">Scoring Weights:</p>
-          <p>Each factor contributes to the 0-100 final score based on importance</p>
+            <ScoreBar
+              label="Preference"
+              value={breakdown.preference}
+              weight={25}
+              color="blue"
+              description="Matches your patterns"
+            />
+
+            <ScoreBar
+              label="Conflict Buffer"
+              value={breakdown.conflict_proximity}
+              weight={20}
+              color="yellow"
+              description="Spacing from other meetings"
+            />
+
+            <ScoreBar
+              label="Calendar Grouping"
+              value={breakdown.fragmentation}
+              weight={15}
+              color="purple"
+              description="Reduces calendar fragmentation"
+            />
+
+            {breakdown.optimization !== undefined && breakdown.optimization > 0 && (
+              <ScoreBar
+                label="Optimization"
+                value={breakdown.optimization}
+                weight={5}
+                color="indigo"
+                description="Additional AI adjustments"
+              />
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>

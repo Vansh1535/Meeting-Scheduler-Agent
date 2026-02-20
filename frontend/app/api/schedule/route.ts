@@ -63,17 +63,6 @@ export async function POST(request: NextRequest) {
       // New format: Enrich participants with compressed calendars
       console.log(`📧 Stage 4: Enriching ${body.participant_emails.length} participants with real calendar data...`);
 
-      if (body.participant_emails.length < 2) {
-        return NextResponse.json<ErrorResponse>(
-          {
-            error: 'Invalid request',
-            message: 'At least 2 participant emails are required',
-            status: 400,
-          },
-          { status: 400 }
-        );
-      }
-
       // Check calendar status for informational purposes
       const calendarStatus = await checkParticipantCalendarStatus(body.participant_emails);
       
@@ -103,17 +92,6 @@ export async function POST(request: NextRequest) {
     } else if (body.participants && body.participants.length > 0) {
       // Legacy format: Use provided participants
       console.log(`📝 Legacy format: Using ${body.participants.length} provided participants`);
-
-      if (body.participants.length < 2) {
-        return NextResponse.json<ErrorResponse>(
-          {
-            error: 'Invalid request',
-            message: 'At least 2 participants are required',
-            status: 400,
-          },
-          { status: 400 }
-        );
-      }
 
       enrichedRequest = body as ScheduleRequest;
 
